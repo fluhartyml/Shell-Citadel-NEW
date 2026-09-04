@@ -216,6 +216,13 @@
 //     Two needs landed on it the same morning: it is the missing EYE for the
 //     homelab (Claude cannot see a cable, a label or an amber light), and it is
 //     how he reports a bug from the couch with only a phone.
+//     🔒 LOCKED 2026-09-04 — ALL THREE SOURCES: camera, photo library, document scan.
+//        And they all port to the Mac. His words: "should all port except the location
+//        pin drop." So the Mac gets photos and scanning; LOCATION PIN DROP IS iOS ONLY.
+//        ⚠️ On the Mac, "camera" and "scan" both mean CONTINUITY CAMERA — his phone,
+//           used from the Mac. That is the same phone in his hand either way, so the
+//           feature is real there rather than a stub, but it is a different API path
+//           and must not be assumed to fall out of the iOS work for free.
 //     🔒 LOCKED — UI decided 2026-08-25: a "+" beside the predictive text boxes,
 //     offering "image or scan" — VisionKit's document scanner gives deskew and
 //     edge-crop free, same machinery as his own Snap&ScanKeeper.
