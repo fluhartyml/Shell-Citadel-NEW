@@ -35,6 +35,12 @@ struct TerminalView: View {
     @State private var replyTask: Task<Void, Never>?
     @State private var replyOffset = 0
 
+    // ⚠️ THE DEMO IS A REJECTION GUARD. See DemoMode.swift.
+    @State private var isDemo = false
+    @State private var demoTask: Task<Void, Never>?
+    /// The real transcript, put back when the demonstration ends.
+    @State private var transcriptBeforeDemo: [TranscriptLine] = []
+
     // The "+" beside the composer. Michael, 2026-08-25: "I want to add a plus next ti
     // the predictive text boxes to add a camera capture function" — "image or scan".
     @State private var pickedItem: PhotosPickerItem?
@@ -48,6 +54,34 @@ struct TerminalView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // ⚠️ ALWAYS ON SCREEN WHILE THE DEMO RUNS, AND THERE IS NO WAY TO CLOSE
+                // IT. A simulation somebody could mistake for a real connection is both
+                // a rejection reason and a lie. It says "not connected" in plain words
+                // rather than "demo", because that is the thing the reader must not be
+                // wrong about.
+                if isDemo {
+                    HStack {
+                        Text(DemoMode.banner)
+                            .font(.footnote.weight(.semibold))
+                        Spacer()
+                        // ⚠️ THIS DOES NOT DISMISS THE NOTICE, IT ENDS THE STATE THE
+                        // NOTICE REPORTS. Rule 1 says the banner is never dismissible,
+                        // and it is not: there is no way to be in the simulation without
+                        // this bar on screen. But a demonstration with no exit is a trap
+                        // — the reviewer who wants to try their own machine next has to
+                        // force-quit — so ending the simulation has to be one tap, and
+                        // the bar goes away because the simulation did.
+                        Button("End") { endDemo() }
+                            .font(.footnote.weight(.semibold))
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(.black)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.orange)
+                    .foregroundStyle(.black)
+                }
                 transcriptView
                 Divider()
                 composer
@@ -105,7 +139,9 @@ struct TerminalView: View {
                         }
                 }
             }
-            .sheet(isPresented: $showingAbout) { AboutView() }
+            .sheet(isPresented: $showingAbout) {
+                AboutView(onStartDemo: startDemo)
+            }
             .photosPicker(isPresented: $showingPhotoPicker, selection: $pickedItem, matching: .images)
             .onChange(of: pickedItem) { _, item in
                 guard let item else { return }
@@ -335,6 +371,11 @@ struct TerminalView: View {
 
         isBusy = true
         defer { isBusy = false }
+        // ⚠️ A REAL CONNECTION ENDS THE SIMULATION, ALWAYS. The two states must never
+        // be able to overlap: a banner saying "not connected" above a live session
+        // would be worse than either one alone.
+        if isDemo { endDemo() }
+
         transcript.append(.init(kind: .status, text: "Connecting to \(connection.host)\u{2026}"))
         do {
             try await session.connect(to: connection, password: password)
@@ -384,11 +425,50 @@ struct TerminalView: View {
         composerFocused = true
     }
 
+    /// Play the script. Touches nothing but the transcript.
+    ///
+    /// ⚠️ IT KEEPS THE REAL TRANSCRIPT AND PUTS IT BACK. Somebody trying the demo out of
+    /// curiosity mid-session should not lose what they were doing.
+    private func startDemo() {
+        demoTask?.cancel()
+        transcriptBeforeDemo = transcript
+        transcript = []
+        isDemo = true
+        demoTask = Task {
+            for beat in DemoMode.script {
+                try? await Task.sleep(for: .seconds(beat.delay))
+                if Task.isCancelled { return }
+                transcript.append(.init(kind: beat.kind, text: beat.text))
+            }
+            // ⚠️ THE SCRIPT ENDING DOES NOT END THE DEMO. Wiping the transcript the
+            // moment the last line lands would take the demonstration away from
+            // somebody still reading it. The state ends when they say so, or when they
+            // connect to something real.
+        }
+    }
+
+    private func endDemo() {
+        demoTask?.cancel()
+        demoTask = nil
+        isDemo = false
+        transcript = transcriptBeforeDemo
+        transcriptBeforeDemo = []
+    }
+
     private func send() async {
         let command = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !command.isEmpty else { return }
         input = ""
         transcript.append(.init(kind: .command, text: "$ \(command)"))
+
+        // ⚠️ THE NETWORK GUARD. Rule 2 of DemoMode: nothing here may reach a socket.
+        // It answers rather than staying silent, because silence during a demonstration
+        // reads as a hung app \u{2014} which is the exact impression this mode exists to
+        // disprove.
+        if isDemo {
+            transcript.append(.init(kind: .status, text: DemoMode.reply(to: command)))
+            return
+        }
         isBusy = true
         defer { isBusy = false }
         // ⚠️ TWO DIFFERENT THINGS, NOT ONE WITH A FLAG. In Claude mode the message is

@@ -17,6 +17,9 @@ import SwiftUI
 struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
 
+    /// Handed in by whoever presents this sheet. nil means the demo cannot run from here.
+    var onStartDemo: (() -> Void)? = nil
+
     var body: some View {
         NavigationStack {
         List {
@@ -78,6 +81,42 @@ struct AboutView: View {
                           it is older than any build that names a commit here.
                           """
                     )
+                }
+            }
+
+            // ⚠️ THIS BUTTON IS A REJECTION GUARD, NOT A FEATURE. His words, 2026-09-04:
+            // "that was a guard so the app wouldnt get rejected."
+            //
+            // A reviewer opens an SSH client with no machine of their own to reach, sees
+            // a form that does nothing, and rejects the app as non-functional. This is
+            // the one path through the app that works with nothing connected.
+            //
+            // ⚠️ IT LIVES IN ABOUT ON PURPOSE. About is where a reviewer looks when an
+            // app appears to do nothing \u{2014} so it is where the demonstration has to be
+            // findable without being told about it.
+            if let onStartDemo {
+                Section {
+                    Button("Run the demonstration") {
+                        dismiss()
+                        onStartDemo()
+                    }
+                } header: {
+                    HStack {
+                        Text("Demonstration")
+                        MoreInfo(
+                            title: "the demonstration",
+                            detail: """
+                            Walks through the setup with nothing connected \u{2014} no \
+                            network, no machine, nothing sent.
+
+                            A banner stays on screen the whole time saying so, because a \
+                            simulation that could be mistaken for a real connection would \
+                            be dishonest.
+
+                            Your conversation is put back when it finishes.
+                            """
+                        )
+                    }
                 }
             }
 
