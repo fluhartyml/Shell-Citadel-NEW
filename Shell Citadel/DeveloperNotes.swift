@@ -36,10 +36,10 @@
 //  DECISIONS ALREADY MADE — 2026-09-04
 //  ─────────────────────────────────────────────────────────────────────────────
 //
-//  PLATFORMS. Multiplatform: a Mac app and an iOS app. His words: "I want to have
+//  🔒 LOCKED — PLATFORMS. Multiplatform: a Mac app and an iOS app. His words: "I want to have
 //  this a Mac app and an iOS app."
 //
-//  BUILD NUMBER. CURRENT_PROJECT_VERSION = `git rev-list --count HEAD`, written by
+//  🔒 LOCKED — BUILD NUMBER. CURRENT_PROJECT_VERSION = `git rev-list --count HEAD`, written by
 //  a post-commit hook, and SHOWN IN THE APP with the commit beside it.
 //  This is not a preference. The old app reported "1.0 (1)" for every build ever
 //  made, so a working iPad and three broken iPhones could not be told apart, and a
@@ -47,7 +47,7 @@
 //  Michael: "you need to make sure it happens and you do not get complaicent."
 //  Install it BEFORE the first device build — Workshop/Build-Number-Kit/.
 //
-//  DICTATION PAUSE = 1.5 SECONDS. Measured, twice, independently. He tried 1s
+//  🔒 LOCKED — DICTATION PAUSE = 1.5 SECONDS. Measured, twice, independently. He tried 1s
 //  (it cut him off mid-sentence), 3s ("way too long"), 2s ("too long"), and landed
 //  on "1.5 is a sweet spot" — the same value the old app's 2026-09-02 commit had
 //  arrived at. The control is a Stepper, 0.5–5.0, HALF-second steps: anything
@@ -115,6 +115,24 @@
 //  Michael, 2026-09-04: "i want you to have a section devoted to a road map of
 //  shell Citadel[l] i want you to use shell citadel.old as a template."
 //
+//  ─────────────────────────────────────────────────────────────────────────────
+//  🔑 KEY — read this first, then skip anything marked LOCKED
+//  ─────────────────────────────────────────────────────────────────────────────
+//  His ask, 2026-09-04: "Put the key and the locked rec q back in so i can review
+//  and skip the already locked in decsisions."
+//
+//    🔒 LOCKED       He has decided it. Do not re-open it, do not re-ask, do not
+//                    offer alternatives. SKIP THESE WHEN REVIEWING.
+//    ⭐ RECOMMENDED  What Claude thinks is next. A suggestion, not a decision —
+//                    exactly one item carries this at a time.
+//    ❓ QUESTION     Waiting on HIM. Nothing below it should be built until it is
+//                    answered, and Claude must not answer it by assuming.
+//    ⬜ OPEN         Wanted, unstarted, nothing blocking it.
+//    ✅ DONE         Built AND verified by running it — not by compiling it.
+//
+//  ⚠️ A marker is a claim. ✅ means he saw it work. Anything Claude has only
+//     built and not watched him use is ⬜, however finished it looks.
+//
 //  Source: ~/Developer.complex/Shell Citadel.OLD/ROADMAP.md. That file is the
 //  template, not the plan — the OLD app's order was right and its features were
 //  wanted. What changed is that they were built onto a foundation that could not
@@ -132,16 +150,16 @@
 //      at a time, not batched.
 //
 //  ─────────────────────────────────────────────────────────────────────────────
-//  🛑 CHUNK 0 — THE FLOOR. Before any feature. New to this rebuild.
+//  🛑 CHUNK 0 — THE FLOOR. ⭐ RECOMMENDED NEXT. New to this rebuild.
 //  ─────────────────────────────────────────────────────────────────────────────
 //  Not in the old roadmap, which is exactly why the old app ended the way it did.
 //
-//    0.1  BUILD NUMBER = COMMIT COUNT, installed and shown in About, BEFORE the
+//    0.1  🔒 LOCKED — BUILD NUMBER = COMMIT COUNT, installed and shown in About, BEFORE the
 //         first build ever leaves the simulator. Workshop/Build-Number-Kit/.
 //         The old app shipped ~95 builds that all called themselves "1.0 (1)".
-//    0.2  ONE OWNER OF FIRST RESPONDER, decided and written down here before any
+//    0.2  🔒 LOCKED — ONE OWNER OF FIRST RESPONDER, decided and written down here before any
 //         text input exists. The old app had two and never recovered.
-//    0.3  A WAY TO SEE INSIDE IT. Whatever the app does to focus, audio, or the
+//    0.3  ⬜ OPEN — A WAY TO SEE INSIDE IT. Whatever the app does to focus, audio, or the
 //         connection must be observable from outside without guessing.
 //         Five consecutive guesses is what ended the old app.
 //
@@ -149,46 +167,47 @@
 //  CHUNKS, CARRIED FORWARD IN HIS ORDER
 //  ─────────────────────────────────────────────────────────────────────────────
 //
-//  1  TALKS TO THE MAC.
+//  1  ⬜ OPEN — TALKS TO THE MAC.
 //     SSH, runs commands, prints real output, `cd` sticks, settings persist.
 //     Done in the old app in nine commits, 2026-08-22. Verified by running
 //     `who am i` and `ls` from the phone — that is the bar for "done" here too.
 //     ⚠️ Assume the Mac's ADDRESS is wrong before assuming the app is: it moved
 //        192.168.1.38 -> .63 overnight on 2026-09-04 and broke every connection.
 //
-//  2  IT LOOKS LIKE YOURS.
+//  2  ⬜ OPEN — IT LOOKS LIKE YOURS.
+//     🔒 LOCKED: his icon, light + dark, NEVER tinted.
 //     Icon built by him in Image Producer. Light + dark, NEVER tinted — his art.
 //     Short, visual, makes it a product instead of a test harness.
 //
-//  2.5 📷 PHOTOS AND SCREENSHOTS, PHONE -> CLAUDE.
+//  2.5 📷 ⬜ OPEN — PHOTOS AND SCREENSHOTS, PHONE -> CLAUDE.
 //     ⭐ HIS EXPLICIT PRIORITY, above both speech chunks. 2026-08-23: "stt and tts
 //     is lower priority than getting a photo or screenshot from my phone to you."
 //     Two needs landed on it the same morning: it is the missing EYE for the
 //     homelab (Claude cannot see a cable, a label or an amber light), and it is
 //     how he reports a bug from the couch with only a phone.
-//     UI already decided, 2026-08-25: a "+" beside the predictive text boxes,
+//     🔒 LOCKED — UI decided 2026-08-25: a "+" beside the predictive text boxes,
 //     offering "image or scan" — VisionKit's document scanner gives deskew and
 //     edge-crop free, same machinery as his own Snap&ScanKeeper.
-//     ⛔ MAP BEFORE CODING — his standing rule. Transport is the easy half. The
+//     ❓ QUESTION — MAP BEFORE CODING, his standing rule. Transport is the easy half. The
 //        real questions: where do files land so Claude finds them unprompted, and
 //        HOW DOES CLAUDE LEARN ONE ARRIVED.
 //     🔒 Privacy is the spine: the file goes to HIS Mac and nowhere else. No
 //        service, no upload, no account. That must survive the feature intact.
 //
-//  3  IT SPEAKS THE ANSWER (TTS). Below 2.5 by his call, 2026-08-23.
-//     ⛔ HALF DUPLEX IS PART OF THIS CHUNK, NOT A LATER REFINEMENT. The old app
+//  3  ⬜ OPEN — IT SPEAKS THE ANSWER (TTS). Below 2.5 by his call, 2026-08-23.
+//     🔒 LOCKED — HALF DUPLEX IS PART OF THIS CHUNK, NOT A LATER REFINEMENT. The old app
 //        spoke, its own mic heard it, and sent Claude's words back as his — twice
 //        in one session, through AirPods. Shut the mic before the first word.
 //
-//  4  YOU SPEAK TO IT (STT). Back burner by his call, 2026-08-23 — but see HANDS
+//  4  ⬜ OPEN — YOU SPEAK TO IT (STT). Back burner by his call, 2026-08-23 — but see HANDS
 //     FREE below, which overtook it on 2026-08-31.
-//     ✅ SETTLED: send-on-pause = 1.5s, Stepper 0.5–5.0 in HALF-second steps.
+//     🔒 LOCKED: send-on-pause = 1.5s, Stepper 0.5–5.0 in HALF-second steps.
 //
-//  5  IT REACHES THE TMUX SESSION. Done out of order in the old app, 2026-08-22.
+//  5  ⬜ OPEN — IT REACHES THE TMUX SESSION. Done out of order in the old app, 2026-08-22.
 //     This is what makes it a Claude terminal rather than a shell.
 //
-//  6  SHIP IT.
-//     🛑 UNITED STATES ONLY. App Store Connect -> Pricing and Availability -> the
+//  6  ⬜ OPEN — SHIP IT.
+//     🔒 LOCKED — UNITED STATES ONLY. App Store Connect -> Pricing and Availability -> the
 //        United States and NOTHING else. 2026-08-27: "please be extra sure when we
 //        submitt to app store connect that we only allow the united states be the
 //        only region the app is available."
@@ -204,12 +223,12 @@
 //  ─────────────────────────────────────────────────────────────────────────────
 //  CARRIED-FORWARD ITEMS FROM THE OLD ROADMAP — wanted, not yet placed
 //  ─────────────────────────────────────────────────────────────────────────────
-//    💓 HEARTBEAT — asked 2026-08-24. Knowing the far end is alive.
-//    📍 LOCATION PIN DROP + MAP SNAPSHOT — his idea, 2026-08-28. Location arrives
+//    ⬜ 💓 HEARTBEAT — asked 2026-08-24. Knowing the far end is alive.
+//    ⬜ 📍 LOCATION PIN DROP + MAP SNAPSHOT — his idea, 2026-08-28. Location arrives
 //       ONLY when he drops a pin; never ambient.
-//    📱 THE iPHONE ULTRA REPLACES THE iPAD MINI — his statement, 2026-08-29.
-//    📋 CHECKLIST — raised 2026-08-30, never started. One at a time, his ruling.
-//    🎙️ HANDS FREE — his goal, stated plainly 2026-08-31: talk and listen with no
+//    ⬜ 📱 THE iPHONE ULTRA REPLACES THE iPAD MINI — his statement, 2026-08-29.
+//    ⬜ 📋 CHECKLIST — raised 2026-08-30, never started. One at a time, his ruling.
+//    🔒 🎙️ HANDS FREE — his goal, stated plainly 2026-08-31: talk and listen with no
 //       hands. This is the thing he actually wants the app for, and on 2026-09-04
 //       it was the ONE part still working when everything else had failed.
 //       ⭐ Treat it as the product, not a feature of it.
