@@ -159,9 +159,25 @@
 //         The old app shipped ~95 builds that all called themselves "1.0 (1)".
 //    0.2  🔒 LOCKED — ONE OWNER OF FIRST RESPONDER, decided and written down here before any
 //         text input exists. The old app had two and never recovered.
-//    0.3  ⬜ OPEN — A WAY TO SEE INSIDE IT. Whatever the app does to focus, audio, or the
-//         connection must be observable from outside without guessing.
-//         Five consecutive guesses is what ended the old app.
+//    0.3  🔒 LOCKED — A WAY TO SEE INSIDE IT.
+//         Michael, 2026-09-04, when asked which form he wanted: "you are the engineer
+//         not me." So this is Claude's call, and it is made.
+//
+//         THE APP KEEPS A ROLLING RECORD OF ITS OWN STATE and can hand it over:
+//           • WHAT IS RECORDED — who owns first responder, whether the mic is
+//             listening, whether speech is playing, connection state, and the last
+//             error with its real reason. Every entry timestamped.
+//           • WHERE IT GOES — written to the Mac over the connection the app already
+//             has. He should never have to describe a symptom or read a log aloud.
+//           • WHAT HE SEES — a Diagnostics row in About showing the same values live,
+//             for when there is no connection to write over. Selectable, like the
+//             build number, so it can be read out if it comes to that.
+//
+//         WHY IT IS CHUNK 0 AND NOT A LATER NICETY. Every one of the old app's
+//         unresolved bugs — the caret dying, the 24-character truncation, three
+//         connections deleting at once, "Done Done Done" — was a state question that
+//         nothing could answer. FIVE CONSECUTIVE GUESSES ENDED THAT APP. The cost of
+//         building this is hours; the cost of not building it was the project.
 //
 //  ─────────────────────────────────────────────────────────────────────────────
 //  CHUNKS, CARRIED FORWARD IN HIS ORDER
