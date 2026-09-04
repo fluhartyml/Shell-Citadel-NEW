@@ -15,6 +15,8 @@
 import SwiftUI
 
 struct AboutView: View {
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         NavigationStack {
         List {
@@ -73,6 +75,22 @@ struct AboutView: View {
             }
         }
         .navigationTitle("About")
+        // ⚠️ A MAC SHEET SIZES TO ITS CONTENT AND A List HAS NO NATURAL SIZE, so
+        // without this the whole sheet collapsed to a box showing the title and one
+        // row. He caught it on the running Mac app, 2026-09-04 — and it was the worst
+        // possible thing to lose, because the build number lives here and the entire
+        // point of the build number is that it can always be read off the screen.
+        #if os(macOS)
+        .frame(minWidth: 460, idealWidth: 520, minHeight: 560, idealHeight: 640)
+        #endif
+        .toolbar {
+            // ⚠️ AND THERE WAS NO WAY OUT. iOS gives a sheet a swipe-down; macOS gives
+            // it nothing. A modal with no dismiss is not a cosmetic bug — it is an app
+            // he has to force-quit.
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismiss() }
+            }
+        }
         }
     }
 

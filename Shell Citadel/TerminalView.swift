@@ -89,6 +89,11 @@ struct TerminalView: View {
             .sheet(isPresented: $showingConnection) {
                 NavigationStack {
                     ConnectionEditor(connection: $connection, password: $password)
+                        // Same reason as About: a Mac sheet sizes to its content and a
+                        // Form has no natural size, so it collapses without this.
+                        #if os(macOS)
+                        .frame(minWidth: 480, idealWidth: 560, minHeight: 560, idealHeight: 680)
+                        #endif
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
                                 Button("Done") {
