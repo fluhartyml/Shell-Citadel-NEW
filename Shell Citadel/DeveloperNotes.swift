@@ -261,6 +261,11 @@
 //
 //  2  ⬜ OPEN — IT LOOKS LIKE YOURS.
 //     🔒 LOCKED: his icon, light + dark, NEVER tinted.
+//     ⚠️ AND THE TWO FILES BEING IDENTICAL IS DELIBERATE — do not flag it again.
+//        AppIcon-1024.png and AppIcon-1024-dark.png are byte-for-byte the same image
+//        (sha 4385a033), carried over from Shell Citadel.OLD. Raised with him
+//        2026-09-04: "i think that's designed that's OK." The icon reads the same in
+//        both appearances by choice. A future session finding this must not "fix" it.
 //     Icon built by him in Image Producer. Light + dark, NEVER tinted — his art.
 //     Short, visual, makes it a product instead of a test harness.
 //
