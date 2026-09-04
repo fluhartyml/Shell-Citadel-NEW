@@ -69,10 +69,20 @@ final class LinkLight {
         /// ⚠️ EVERY ONE OF THESE SAYS WHAT IT MEANS FOR HIM, not what the app is doing.
         /// "No signal" is a fact about the app; "nothing you send will arrive" is the
         /// consequence, and the consequence is the part worth reading.
+        /// The words beside the dot. His wording, 2026-09-04.
+        var label: String {
+            switch self {
+            case .red: "Disconnected"
+            case .yellow: "Waiting for a response"
+            case .green: "Connected"
+            }
+        }
+
+        /// The longer form, for the tooltip and for VoiceOver.
         var summary: String {
             switch self {
-            case .red: "No signal \u{2014} nothing you send will arrive."
-            case .yellow: "Sent. Waiting for a reply."
+            case .red: "Disconnected \u{2014} nothing you send will arrive."
+            case .yellow: "Sent. Waiting for a response."
             case .green: "Connected, checked in the last few seconds."
             }
         }
@@ -159,14 +169,28 @@ struct LinkLightView: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "lightbulb.fill")
+            // ⚠️ A DOT, NOT A LIGHTBULB. He asked for a light and I drew a lightbulb,
+            // which he called "too litteral" — and he is right about why. A picture of a
+            // lamp is an illustration of the metaphor; an LED is the thing itself, the
+            // same indicator that is on the front of every piece of equipment in his
+            // rack. It also reads at a glance at any size, which a filament does not.
+            Image(systemName: "circle.fill")
                 .foregroundStyle(light.quality.color)
+                .font(.system(size: 9))
+
+            // ⚠️ AND THE WORDS ARE NOT OPTIONAL. His format: a dot followed by what it
+            // means. A colour alone asks him to remember a legend, and the one state
+            // that matters most — waiting — has a number attached that no colour can
+            // carry.
+            Text(light.quality.label)
                 .font(.footnote)
+                .foregroundStyle(.secondary)
 
             if let since = light.waitingSince {
                 WaitingClock(since: since)
             }
         }
+        .accessibilityElement(children: .combine)
         .accessibilityLabel(light.quality.summary)
         .help(light.quality.summary)
     }
@@ -198,8 +222,10 @@ private struct WaitingClock: View {
 
     /// ⚠️ IT NEVER SAYS THE FAR END IS TYPING. This side cannot know that. It reports
     /// the one thing it does know — how long the wait has been — and lets him judge it.
+    /// ⚠️ HIS NOTATION: "n:ns". Minutes, seconds, and the unit left on so the number is
+    /// never mistaken for a clock time — 0:42s is plainly a duration, 0:42 could be
+    /// read as twenty to one.
     private func label(for seconds: Int) -> String {
-        if seconds < 60 { return "\(seconds)s" }
-        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+        String(format: "%d:%02ds", seconds / 60, seconds % 60)
     }
 }
