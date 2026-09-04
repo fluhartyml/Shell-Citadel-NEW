@@ -172,7 +172,46 @@
 //    0.1  🔒 LOCKED — BUILD NUMBER = COMMIT COUNT, installed and shown in About, BEFORE the
 //         first build ever leaves the simulator. Workshop/Build-Number-Kit/.
 //         The old app shipped ~95 builds that all called themselves "1.0 (1)".
-//    0.2  🔒 LOCKED — ONE OWNER OF FIRST RESPONDER, decided and written down here before any
+//    0.2  🔒 LOCKED — ONE OWNER OF FIRST RESPONDER. Decided 2026-09-04, written
+//         down BEFORE any text input exists, because the old app decided it by
+//         accident and could never undo it.
+//
+//         THE RULE: THE COMPOSER IS THE ONLY VIEW IN THIS APP THAT EVER CALLS
+//         becomeFirstResponder(). Nothing else. Not the terminal, not a hidden
+//         catcher, not a tab bar, not a settings field.
+//
+//         WHAT THAT FORBIDS, EXPLICITLY:
+//           ⛔ No invisible UIKeyInput view that exists only to hold the keyboard.
+//              That is what TerminalKeyInput was, and it took the caret back off
+//              whatever he had tapped on every single redraw — twice a second,
+//              because a 0.5s timer kept redrawing the screen.
+//           ⛔ No becomeFirstResponder() inside updateUIView or any other function
+//              that runs on redraw. Taking focus is a RESPONSE TO AN EVENT — a tap,
+//              a sheet closing, a connection opening — never a side effect of
+//              drawing.
+//           ⛔ No second responder "guarded" so the two can coexist. THE GUARD IS
+//              THE TRAP. Two plausible guards were tried on 2026-09-03/04 and both
+//              were wrong in ways that could not be seen from outside:
+//                • window?.isKeyWindow — a UIKit sheet is presented INSIDE the same
+//                  window, so this can never be false while a sheet is up. It let
+//                  every theft through, and three rollbacks were spent looking for
+//                  a cause that had already been "fixed".
+//                • rootViewController?.presentedViewController — non-nil whenever
+//                  ANYTHING is presented anywhere, so it blocked the keyboard
+//                  permanently: "the keyboard does not work."
+//              Both read like "is something on top of me". Neither answers it.
+//
+//         WHY A RULE INSTEAD OF A BETTER GUARD. A correct guard is possible — ask
+//         the view's OWN controller, not the root's. But every guard has to be
+//         right in every arrangement the app is ever put into, and it fails
+//         SILENTLY and INVISIBLY when it is wrong: the symptom is a cursor that
+//         blinks once, which looks identical to a broken text field. One owner
+//         cannot have this class of bug at all.
+//
+//         IF THE TERMINAL LATER NEEDS RAW KEYSTROKES (arrow keys, control codes),
+//         it gets them from the composer's own input handling, or from a keyboard
+//         shortcut layer that does not hold first responder. Not from a second
+//         responder., decided and written down here before any
 //         text input exists. The old app had two and never recovered.
 //    0.3  🔒 LOCKED — A WAY TO SEE INSIDE IT.
 //         Michael, 2026-09-04, when asked which form he wanted: "you are the engineer
