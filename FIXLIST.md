@@ -2,6 +2,15 @@
 
 Found by Michael running the app. Nothing here is fixed until he says it looks right.
 
+⚠️ THIS FILE WENT STALE ONCE. It stopped at 7 items while the amber page he actually
+reads grew to 27, because the later items were added to the page and not to this table.
+The page is the surface; this table is the copy that ships in the repo, and they have to
+agree. Full list: Workshop/Shell-Citadel-FIXLIST.html
+
+Status: 🔨 built and wired, not yet seen working by him. ✅ only when he says so.
+Items 1-20 are 🔨 as of build 27, commit 2a16713. Items 21-27 are screens the new app
+has never had, so they are work to do rather than faults to fix.
+
 | # | Status | Screen | What is wrong |
 |---|--------|--------|---------------|
 | 1 | [ ] | Connection sheet (Mac) | Labels clipped on BOTH sides — "Address" reads "ddress", "User name" reads "r name", the Mode footer cuts off mid-word. Content is wider than the sheet. |

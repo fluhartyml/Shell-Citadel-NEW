@@ -27,41 +27,88 @@ struct AboutView: View {
                     .foregroundStyle(.secondary)
             }
 
+            // ⚠️ THESE TWO SECTIONS ARE A LICENCE OBLIGATION, NOT A COURTESY.
+            //
+            // MIT requires the copyright and permission notices to be included in
+            // copies; Apache 2.0 section 4 carries its own attribution duty. The duty
+            // attaches to the BINARY, so it has to be reachable from inside the running
+            // app — a line in the README does not discharge it.
+            //
+            // The old app carried this from 2026-08-22. The rebuild dropped it, because
+            // nothing anywhere fails when a notice is missing.
             Section {
-                LabeledContent("Version", value: Self.marketingVersion)
-                LabeledContent("Build", value: Self.buildNumber)
-                LabeledContent("Commit", value: BuildStamp.commit)
-                LabeledContent("Built", value: BuildStamp.built)
+                Text(Attribution.disclaimer)
+            } header: {
+                Text("Not official")
+            }
+
+            Section {
+                ForEach(Attribution.components) { component in
+                    NavigationLink {
+                        LicenseView(component: component)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(component.name)
+                            Text("\(component.holder) \u{00B7} \(component.license)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            } header: {
+                Text("Built with")
+            } footer: {
+                Text("Every component this app links, and the licence each one ships under. Tap one for its full text.")
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section {
+                Group {
+                    LabeledContent("Version", value: Self.marketingVersion)
+                    LabeledContent("Build", value: Self.buildNumber)
+                    LabeledContent("Commit", value: BuildStamp.commit)
+                    LabeledContent("Built", value: BuildStamp.built)
+                }
+                // ⚠️ THE FACE GOES ON THE ROWS, NOT THE SECTION. Applied to the Section
+                // it also reaches the header and footer, so "Build" rendered in a
+                // typewriter face while every other header on the sheet did not. The
+                // VALUES want monospace \u{2014} they get read out loud a character at a
+                // time, and a commit hash in a proportional face is where 1 and l stop
+                // being distinguishable.
+                .font(.system(.footnote, design: .monospaced))
+                .textSelection(.enabled)
             } header: {
                 Text("Build")
             } footer: {
                 Text(BuildStamp.isStamped
                      ? "The build number counts commits, so it only ever goes up. It is the same number Xcode and App Store Connect show, and it points at the commit beside it. A \u{201C}+\u{201D} after the commit means this build carries changes that were never committed."
                      : "This build was made before build numbering existed \u{2014} so it is older than any build that names a commit here.")
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .textSelection(.enabled)
-            .font(.system(.footnote, design: .monospaced))
 
             // ⚠️ STEP 0.3. This is the screen that answers "what is it doing right
             // now?" without anyone guessing. It is here from the first day rather
             // than added after a bug, because the bugs that ended the previous app
             // were all state questions nothing could answer.
             Section {
-                LabeledContent("Keyboard", value: diagnostics.focusOwner)
-                LabeledContent("Microphone", value: diagnostics.isListening ? "listening" : "off")
-                LabeledContent("Speech", value: diagnostics.isSpeaking ? "speaking" : "off")
-                LabeledContent("Connection", value: diagnostics.connection)
-                if let lastError = diagnostics.lastError {
-                    LabeledContent("Last error", value: lastError)
-                        .foregroundStyle(.orange)
+                Group {
+                    LabeledContent("Keyboard", value: diagnostics.focusOwner)
+                    LabeledContent("Microphone", value: diagnostics.isListening ? "listening" : "off")
+                    LabeledContent("Speech", value: diagnostics.isSpeaking ? "speaking" : "off")
+                    LabeledContent("Connection", value: diagnostics.connection)
+                    if let lastError = diagnostics.lastError {
+                        LabeledContent("Last error", value: lastError)
+                            .foregroundStyle(.orange)
+                    }
                 }
+                .font(.system(.footnote, design: .monospaced))
+                .textSelection(.enabled)
             } header: {
                 Text("Now")
             } footer: {
                 Text("What the app is doing at this moment. If something looks wrong, this row says what it actually is rather than what it appears to be.")
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .textSelection(.enabled)
-            .font(.system(.footnote, design: .monospaced))
 
             Section {
                 NavigationLink("Recent activity") {
@@ -72,8 +119,15 @@ struct AboutView: View {
                 // the record is here to be COPIED, not recited. Once there is a
                 // connection it writes itself to the Mac and this becomes the fallback.
                 Text("A timestamped record of focus, microphone, speech and connection changes. Nothing private is recorded \u{2014} no passwords, no commands, no transcript.")
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
+        // ⚠️ THE FOOTERS WERE TRUNCATED WITH AN ELLIPSIS. On macOS a List footer takes
+        // its ideal height from one line, so the build-number explanation cut off at
+        // "It is the s\u{2026}" \u{2014} the sentence explaining the one number the whole
+        // app exists to make readable. This lets any Text on the sheet take the height
+        // its wrapped content needs instead of the height of one line.
+        .environment(\.defaultMinListRowHeight, 22)
         .navigationTitle("About")
         // ⚠️ A MAC SHEET SIZES TO ITS CONTENT AND A List HAS NO NATURAL SIZE, so
         // without this the whole sheet collapsed to a box showing the title and one
@@ -109,6 +163,32 @@ struct AboutView: View {
     /// upload, and what a hash could never promise.
     static var buildNumber: String {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+    }
+}
+
+/// The full licence text for one component.
+///
+/// ⚠️ SELECTABLE, AND SCROLLABLE TO THE END. A notice you cannot copy or cannot reach the
+/// bottom of has not really been included. The link is live so the source is one tap away.
+struct LicenseView: View {
+    let component: Attribution.Component
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if let url = URL(string: component.url) {
+                    Link(component.url, destination: url)
+                        .font(.footnote)
+                }
+                Text(component.text)
+                    .font(.system(.footnote, design: .monospaced))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+        }
+        .navigationTitle(component.name)
     }
 }
 
