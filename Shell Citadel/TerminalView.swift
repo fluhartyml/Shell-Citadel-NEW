@@ -22,6 +22,7 @@ struct TerminalView: View {
     @State private var session = SSHSession()
     @State private var diagnostics = Diagnostics.shared
     @State private var spoken = SpokenOutput.shared
+    @StateObject private var dictation = Dictation.shared
 
     @State private var connection = Connection()
     @State private var password = ""
@@ -143,7 +144,32 @@ struct TerminalView: View {
             }
             #endif
         }
-        .onAppear(perform: restore)
+        .onAppear {
+            restore()
+            // One place decides who owns the audio path — register the microphone with
+            // it so speech can silence the mic without either file importing the other.
+            dictation.registerWithCoordinator()
+            dictation.onUtterance = { text in
+                input = text
+                Task { await send() }
+            }
+            dictation.onCancelled = {
+                input = ""
+                transcript.append(.init(kind: .status, text: "Scratched."))
+            }
+        }
+        // What he is saying, shown as it is recognised. Without this the pause is a
+        // guessing game: he cannot tell whether it heard him until it has already sent.
+        .safeAreaInset(edge: .bottom) {
+            if dictation.isListening, !dictation.partial.isEmpty {
+                Text(dictation.partial)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .padding(.bottom, 4)
+            }
+        }
     }
 
     // MARK: - Pieces
@@ -200,6 +226,25 @@ struct TerminalView: View {
                 #endif
             } label: {
                 Image(systemName: "plus.circle.fill").font(.title2)
+            }
+            .disabled(!isConnected || isBusy)
+
+            // ⚠️ THE MICROPHONE IS A TOGGLE HE CAN ALWAYS REACH, and its colour IS the
+            // state. Michael has said repeatedly that he forgets to mute — the failure
+            // is not knowing whether it is listening, so the control has to answer that
+            // question by looking at it rather than by being tapped.
+            Button {
+                if dictation.isListening {
+                    dictation.stop()
+                    VoiceCoordinator.shared.didStopListening()
+                } else {
+                    VoiceCoordinator.shared.willListen()
+                    dictation.start()
+                }
+            } label: {
+                Image(systemName: dictation.isListening ? "mic.fill" : "mic.slash")
+                    .font(.title2)
+                    .foregroundStyle(dictation.isListening ? .red : .secondary)
             }
             .disabled(!isConnected || isBusy)
 
