@@ -108,6 +108,125 @@
 //    app is.
 //
 
+//  ═════════════════════════════════════════════════════════════════════════════
+//  ROAD MAP
+//  ═════════════════════════════════════════════════════════════════════════════
+//
+//  Michael, 2026-09-04: "i want you to have a section devoted to a road map of
+//  shell Citadel[l] i want you to use shell citadel.old as a template."
+//
+//  Source: ~/Developer.complex/Shell Citadel.OLD/ROADMAP.md. That file is the
+//  template, not the plan — the OLD app's order was right and its features were
+//  wanted. What changed is that they were built onto a foundation that could not
+//  hold them, so the sequence is kept and the foundation is not.
+//
+//  ─────────────────────────────────────────────────────────────────────────────
+//  THE METHOD IS HIS, AND IT IS NOT NEGOTIABLE
+//  ─────────────────────────────────────────────────────────────────────────────
+//  Michael, 2026-08-22: "im loosing interest in this project — but — in order for
+//  me to keep interest i want to chunk it into managable pieces."
+//
+//    • EACH CHUNK ENDS WITH SOMETHING HE CAN HOLD.
+//    • NO CHUNK DEPENDS ON FINISHING THE ONE AFTER IT.
+//    • ONE AT A TIME. His ruling, 2026-08-30, on the checklist: they get done one
+//      at a time, not batched.
+//
+//  ─────────────────────────────────────────────────────────────────────────────
+//  🛑 CHUNK 0 — THE FLOOR. Before any feature. New to this rebuild.
+//  ─────────────────────────────────────────────────────────────────────────────
+//  Not in the old roadmap, which is exactly why the old app ended the way it did.
+//
+//    0.1  BUILD NUMBER = COMMIT COUNT, installed and shown in About, BEFORE the
+//         first build ever leaves the simulator. Workshop/Build-Number-Kit/.
+//         The old app shipped ~95 builds that all called themselves "1.0 (1)".
+//    0.2  ONE OWNER OF FIRST RESPONDER, decided and written down here before any
+//         text input exists. The old app had two and never recovered.
+//    0.3  A WAY TO SEE INSIDE IT. Whatever the app does to focus, audio, or the
+//         connection must be observable from outside without guessing.
+//         Five consecutive guesses is what ended the old app.
+//
+//  ─────────────────────────────────────────────────────────────────────────────
+//  CHUNKS, CARRIED FORWARD IN HIS ORDER
+//  ─────────────────────────────────────────────────────────────────────────────
+//
+//  1  TALKS TO THE MAC.
+//     SSH, runs commands, prints real output, `cd` sticks, settings persist.
+//     Done in the old app in nine commits, 2026-08-22. Verified by running
+//     `who am i` and `ls` from the phone — that is the bar for "done" here too.
+//     ⚠️ Assume the Mac's ADDRESS is wrong before assuming the app is: it moved
+//        192.168.1.38 -> .63 overnight on 2026-09-04 and broke every connection.
+//
+//  2  IT LOOKS LIKE YOURS.
+//     Icon built by him in Image Producer. Light + dark, NEVER tinted — his art.
+//     Short, visual, makes it a product instead of a test harness.
+//
+//  2.5 📷 PHOTOS AND SCREENSHOTS, PHONE -> CLAUDE.
+//     ⭐ HIS EXPLICIT PRIORITY, above both speech chunks. 2026-08-23: "stt and tts
+//     is lower priority than getting a photo or screenshot from my phone to you."
+//     Two needs landed on it the same morning: it is the missing EYE for the
+//     homelab (Claude cannot see a cable, a label or an amber light), and it is
+//     how he reports a bug from the couch with only a phone.
+//     UI already decided, 2026-08-25: a "+" beside the predictive text boxes,
+//     offering "image or scan" — VisionKit's document scanner gives deskew and
+//     edge-crop free, same machinery as his own Snap&ScanKeeper.
+//     ⛔ MAP BEFORE CODING — his standing rule. Transport is the easy half. The
+//        real questions: where do files land so Claude finds them unprompted, and
+//        HOW DOES CLAUDE LEARN ONE ARRIVED.
+//     🔒 Privacy is the spine: the file goes to HIS Mac and nowhere else. No
+//        service, no upload, no account. That must survive the feature intact.
+//
+//  3  IT SPEAKS THE ANSWER (TTS). Below 2.5 by his call, 2026-08-23.
+//     ⛔ HALF DUPLEX IS PART OF THIS CHUNK, NOT A LATER REFINEMENT. The old app
+//        spoke, its own mic heard it, and sent Claude's words back as his — twice
+//        in one session, through AirPods. Shut the mic before the first word.
+//
+//  4  YOU SPEAK TO IT (STT). Back burner by his call, 2026-08-23 — but see HANDS
+//     FREE below, which overtook it on 2026-08-31.
+//     ✅ SETTLED: send-on-pause = 1.5s, Stepper 0.5–5.0 in HALF-second steps.
+//
+//  5  IT REACHES THE TMUX SESSION. Done out of order in the old app, 2026-08-22.
+//     This is what makes it a Claude terminal rather than a shell.
+//
+//  6  SHIP IT.
+//     🛑 UNITED STATES ONLY. App Store Connect -> Pricing and Availability -> the
+//        United States and NOTHING else. 2026-08-27: "please be extra sure when we
+//        submitt to app store connect that we only allow the united states be the
+//        only region the app is available."
+//        WHY IT IS NOT COSMETIC: an SSH client ships strong encryption, which is
+//        US export-controlled. Selling only inside the US removes the whole class
+//        of problem instead of managing it.
+//        ⚠️ The default is EVERY territory, it is silent, and nothing warns you.
+//        RE-CHECK AFTER EVERY SUBMISSION — the "add all territories" click is one
+//        tap wide with no confirmation.
+//        ✅ This is his general rule for all his apps, not a Shell Citadel
+//           exception; this app has the encryption reason on top.
+//
+//  ─────────────────────────────────────────────────────────────────────────────
+//  CARRIED-FORWARD ITEMS FROM THE OLD ROADMAP — wanted, not yet placed
+//  ─────────────────────────────────────────────────────────────────────────────
+//    💓 HEARTBEAT — asked 2026-08-24. Knowing the far end is alive.
+//    📍 LOCATION PIN DROP + MAP SNAPSHOT — his idea, 2026-08-28. Location arrives
+//       ONLY when he drops a pin; never ambient.
+//    📱 THE iPHONE ULTRA REPLACES THE iPAD MINI — his statement, 2026-08-29.
+//    📋 CHECKLIST — raised 2026-08-30, never started. One at a time, his ruling.
+//    🎙️ HANDS FREE — his goal, stated plainly 2026-08-31: talk and listen with no
+//       hands. This is the thing he actually wants the app for, and on 2026-09-04
+//       it was the ONE part still working when everything else had failed.
+//       ⭐ Treat it as the product, not a feature of it.
+//
+//  ─────────────────────────────────────────────────────────────────────────────
+//  ⚠️ WHAT THE OLD ROADMAP DID NOT SAY, AND SHOULD HAVE
+//  ─────────────────────────────────────────────────────────────────────────────
+//  Every chunk above was DELIVERED in the old app. It still had to be abandoned.
+//  The roadmap tracked features and never tracked whether the thing underneath
+//  them still worked — so "hands free" was ticked off while he could not type his
+//  own user name into the connection sheet.
+//
+//  → A CHUNK IS NOT DONE WHILE ANYTHING EARLIER IS BROKEN. Re-run chunk 1's test
+//    (`who am i` from the phone) at the end of every chunk. If it fails, that is
+//    the work, whatever the roadmap says is next.
+//
+
 import Foundation
 
 /// Nothing here ships. See the notes above.
