@@ -320,6 +320,15 @@
 //  ─────────────────────────────────────────────────────────────────────────────
 //  CARRIED-FORWARD ITEMS FROM THE OLD ROADMAP — wanted, not yet placed
 //  ─────────────────────────────────────────────────────────────────────────────
+//    ❓ 🖥️ THE MAC APP IS THE PHONE APP IN A WINDOW — his observation, 2026-09-04:
+//       "the mac app is not really anything like an ipad or phone app." He is right.
+//       One connection, a toolbar, a text field at the bottom: that is a phone screen
+//       stretched, not a Mac app. What a Mac version wants is the connections in a
+//       SIDEBAR, a real resizable window, and keyboard shortcuts.
+//       ⚠️ NOT STARTED, AND NOT TO BE STARTED ON A GUESS. He raised it; he has not
+//          asked for it. And it is worth remembering WHY the Mac app exists at all
+//          (locked above): hands free in a terminal, which Terminal.app cannot do.
+//          A sidebar does not serve that — so the ordering is his call, not mine.
 //    ⬜ 💓 HEARTBEAT — asked 2026-08-24. Knowing the far end is alive.
 //    ⬜ 📍 LOCATION PIN DROP + MAP SNAPSHOT — his idea, 2026-08-28. Location arrives
 //       ONLY when he drops a pin; never ambient.
