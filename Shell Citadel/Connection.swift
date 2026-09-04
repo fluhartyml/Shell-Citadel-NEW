@@ -148,6 +148,48 @@ struct Connection: Codable, Identifiable, Equatable, Sendable {
         !host.isEmpty && host.contains(where: { $0.isLetter })
     }
 
+    /// A copy with the two fields that must be exact made exact.
+    ///
+    /// ⚠️ THE TWO FIELDS ARE NOT TREATED THE SAME, AND THAT IS THE WHOLE POINT.
+    /// His rule, 2026-09-04: "it should parse the user name case sensitive and not save
+    /// space bars, and save host names in lower case using legal charaters."
+    ///
+    /// He is describing SSH's own asymmetry, correctly:
+    ///
+    ///  • THE ACCOUNT IS CASE SENSITIVE. `MichaelFluharty` and `michaelfluharty` are
+    ///    different accounts to sshd, and only one of them exists. So the case he typed
+    ///    is preserved exactly — lowercasing it "to be helpful" would silently change
+    ///    which account is being asked for on a machine that has a capitalised one.
+    ///
+    ///  • THE HOST IS NOT. DNS and mDNS are case insensitive, so `My-Mac.local` and
+    ///    `my-mac.local` are the same machine. Lowercasing removes a difference that
+    ///    cannot matter, which stops the same host being saved twice looking different,
+    ///    and neuters the iOS keyboard's habit of capitalising the first letter.
+    ///
+    /// ⚠️ SPACES COME OUT OF BOTH, AND THAT IS FROM A REAL FAILURE. AutoFill overwrote
+    /// his account with the display name stored beside the password — "michael fluharty",
+    /// with a space — and sshd rejects that outright. A space in either field is never
+    /// what anyone meant, and it is invisible on screen at the end of a line.
+    func normalised() -> Connection {
+        var copy = self
+
+        // Case preserved. Whitespace anywhere in it removed, not just the ends.
+        copy.username = username.filter { !$0.isWhitespace }
+
+        // Lowercased, and reduced to what is legal in a host name: letters, digits,
+        // hyphen and dot. Anything else was a typo, a stray quote, or a keyboard being
+        // clever, and none of those resolve.
+        copy.host = host
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "." }
+
+        copy.name = name.trimmingCharacters(in: .whitespaces)
+        copy.tmuxSession = tmuxSession.filter { !$0.isWhitespace }
+        copy.startFolder = startFolder.trimmingCharacters(in: .whitespaces)
+        copy.replyPath = replyPath.trimmingCharacters(in: .whitespaces)
+        return copy
+    }
+
     /// What to call this connection anywhere one is listed.
     ///
     /// ⚠️ NEVER EMPTY. With no name the address is the honest label, and with neither

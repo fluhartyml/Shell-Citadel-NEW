@@ -439,6 +439,12 @@ struct TerminalView: View {
         // you can look at it again. It cost him an afternoon today: the account read
         // michaelfuharty, missing the l, and the app answered "SSHClientError 4" — a
         // discarded connection would have meant retyping the same mistake from memory.
+        // ⚠️ NORMALISE THE LIVE COPY TOO, NOT JUST THE SAVED ONE. The store cleans what
+        // goes to disk; without this line the ATTEMPT still went out with whatever was
+        // typed — so a space in the account would be stripped from the saved connection
+        // and left in the one being used, and the failure would not match the record of
+        // it. Same values in both places or the saved connection is not evidence.
+        connection = connection.normalised()
         store.save(connection)
 
         transcript.append(.init(kind: .status, text: "Connecting to \(connection.host)\u{2026}"))

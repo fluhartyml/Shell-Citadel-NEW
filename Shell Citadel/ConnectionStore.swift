@@ -25,7 +25,15 @@ final class ConnectionStore {
 
     init() { load() }
 
+    /// ⚠️ NORMALISED HERE, AT THE ONE DOOR EVERY SAVE GOES THROUGH.
+    ///
+    /// Not in the editor's onChange, which would fight him mid-word — lowercasing a host
+    /// name while he is still typing it moves the caret and makes the field feel broken.
+    /// He types what he likes; it is made exact on the way to disk. See
+    /// `Connection.normalised()` for why the account and the host are handled
+    /// differently.
     func save(_ connection: Connection) {
+        let connection = connection.normalised()
         if let i = connections.firstIndex(where: { $0.id == connection.id }) {
             connections[i] = connection
         } else {
