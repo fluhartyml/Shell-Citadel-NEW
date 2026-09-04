@@ -279,7 +279,13 @@
 //    ⬜ 💓 HEARTBEAT — asked 2026-08-24. Knowing the far end is alive.
 //    ⬜ 📍 LOCATION PIN DROP + MAP SNAPSHOT — his idea, 2026-08-28. Location arrives
 //       ONLY when he drops a pin; never ambient.
-//    ⬜ 📱 THE iPHONE ULTRA REPLACES THE iPAD MINI — his statement, 2026-08-29.
+//    ⏸ 📱 THE iPHONE ULTRA — NOT A CONSTRAINT. Michael, 2026-09-04: "i dont have
+//       an iphone ultra." The 2026-08-29 note was about a device he might buy, and it
+//       was carried in the roadmap as though it were a fact about his hardware.
+//       ⚠️ Apple's event is 2026-09-09. If it appears and he buys one, this becomes
+//          real; until then BUILD AND TEST AGAINST WHAT HE ACTUALLY HAS:
+//          iPhone 11 Pro · iPhone 14 Pro Max · iPhone 16e · iPad Pro 13" M4 · iPad mini 6.
+//       → the standing rule this broke: do not build on implied or inferred device state.
 //    ⬜ 📋 CHECKLIST — raised 2026-08-30, never started. One at a time, his ruling.
 //    🔒 🎙️ HANDS FREE — his goal, stated plainly 2026-08-31: talk and listen with no
 //       hands. This is the thing he actually wants the app for, and on 2026-09-04
