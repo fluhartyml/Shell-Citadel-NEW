@@ -29,9 +29,50 @@
 
 import SwiftUI
 
+/// Hex in, Color out, and back again.
+///
+/// ⚠️ STORED AS HEX RATHER THAN A SwiftUI Color BECAUSE IT HAS TO TRAVEL. These settings
+/// sync between his Mac and his phones through a key-value store that holds strings and
+/// numbers. A hex string is also readable in the diagnostics record, which a serialised
+/// colour object is not — and when a colour goes wrong, being able to read what it
+/// actually is beats being able to render it.
+enum HexColor {
+    static func color(_ hex: String) -> Color {
+        var s = hex.trimmingCharacters(in: .whitespaces)
+        if s.hasPrefix("#") { s.removeFirst() }
+        guard s.count == 6, let v = UInt32(s, radix: 16) else { return .primary }
+        return Color(
+            red: Double((v >> 16) & 0xFF) / 255,
+            green: Double((v >> 8) & 0xFF) / 255,
+            blue: Double(v & 0xFF) / 255
+        )
+    }
+
+    static func hex(_ color: Color) -> String {
+        #if os(macOS)
+        let native = NSColor(color).usingColorSpace(.sRGB)
+        let r = native?.redComponent ?? 0, g = native?.greenComponent ?? 0, b = native?.blueComponent ?? 0
+        #else
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a)
+        #endif
+        return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
+    }
+}
+
+/// Which appearance's colours the tabs are showing.
+private enum ColourTab: String, CaseIterable {
+    case light = "Light"
+    case dark = "Dark"
+}
+
+
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var settings = SyncedSettings.shared
+    @State private var tab: ColourTab = .light
+    @State private var spoken = SpokenOutput.shared
+    @StateObject private var dictation = Dictation.shared
 
     var body: some View {
         NavigationStack {
@@ -64,27 +105,126 @@ struct SettingsView: View {
                             """
                         )
                     }
+                    // ⚠️ THE SAME STATE THE TOOLBAR ICONS DRIVE, NOT A SECOND COPY OF
+                    // IT. His wording on the fix list: "the panel is a second way to
+                    // reach them, not a second copy of the state." Two switches that can
+                    // disagree about one fact is worse than one switch in an awkward
+                    // place.
+                    Toggle("Read new output aloud", isOn: $spoken.isEnabled)
+                    Toggle("Microphone on", isOn: Binding(
+                        get: { dictation.isListening },
+                        set: { on in
+                            if on {
+                                VoiceCoordinator.shared.willListen()
+                                dictation.start()
+                            } else {
+                                dictation.stop()
+                                VoiceCoordinator.shared.didStopListening()
+                            }
+                        }))
                 } footer: {
-                    Text("Follows you between devices.")
+                    // ⚠️ THE PAUSE TRAVELS, THE MUTES DO NOT, AND THAT IS DELIBERATE.
+                    // "These stay per-device, not synced. A mute is a fact about the
+                    // room." Silencing the phone on his porch must not silence the Mac
+                    // indoors.
+                    Text("The pause follows you between devices. The mutes stay on this one \u{2014} a mute is a fact about the room you are in.")
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                // ⚠️ NAMED AND EMPTY ON PURPOSE. Appearance is his — columns, lines,
-                // size, colours, the Nerd Font — and it is not built. Listing it as
-                // absent is the honest state; leaving it out entirely is how "not built
-                // yet" quietly becomes "not wanted", which he caught me doing today:
-                // "they are not there because you chose not to code them."
+                // ─────────────────────────────────────────────────────────────────
+                // APPEARANCE — geometry above, colour inside the tabs. His layout.
+                // ─────────────────────────────────────────────────────────────────
                 Section {
-                    LabeledContent("Columns, lines, size", value: "not built yet")
-                    LabeledContent("Text and background colour", value: "not built yet")
-                    LabeledContent("Terminal font", value: "not built yet")
+                    Stepper(value: $settings.columns, in: 20...300, step: 1) {
+                        LabeledContent("Columns") { Text("\(settings.columns)").monospacedDigit() }
+                    }
+                    Stepper(value: $settings.lines, in: 5...200, step: 1) {
+                        LabeledContent("Lines") { Text("\(settings.lines)").monospacedDigit() }
+                    }
+                    // ⚠️ A SLIDER HERE, A STEPPER FOR THE PAUSE, AND THE DIFFERENCE IS
+                    // REAL. Type size is judged by looking at it, so dragging while
+                    // watching is the right gesture. The sending pause is judged by
+                    // talking, where the number matters and the eye is elsewhere.
+                    VStack(alignment: .leading) {
+                        LabeledContent("Size") {
+                            Text(String(format: "%.0f pt", settings.fontSize)).monospacedDigit()
+                        }
+                        Slider(value: $settings.fontSize, in: 8...32, step: 1)
+                    }
+                    Picker("Font", selection: $settings.fontName) {
+                        Text("System monospaced").tag("")
+                        ForEach(Self.monospacedFonts, id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    }
                 } header: {
-                    Text("Appearance")
+                    HStack {
+                        Text("Appearance")
+                        MoreInfo(
+                            title: "size and shape",
+                            detail: """
+                            Columns, lines and size are the same whichever appearance you \
+                            are in, so they sit above the tabs. Only the two colours \
+                            change between Light and Dark.
+
+                            The font list is every monospaced face installed on this \
+                            device \u{2014} read from the device, so what you have \
+                            installed is what you are offered.
+                            """
+                        )
+                    }
+                }
+
+                Section {
+                    Picker("", selection: $tab) {
+                        ForEach(ColourTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    // ⚠️ ONLY TWO CONTROLS LIVE IN HERE, AND THAT IS THE POINT OF THE
+                    // TABS. "the tabs are only for the text color and background color."
+                    // Anything else in this section would imply it could differ between
+                    // light and dark, and nothing else can.
+                    switch tab {
+                    case .light:
+                        ColorPicker("Text", selection: Binding(
+                            get: { HexColor.color(settings.lightText) },
+                            set: { settings.lightText = HexColor.hex($0) }))
+                        ColorPicker("Background", selection: Binding(
+                            get: { HexColor.color(settings.lightBackground) },
+                            set: { settings.lightBackground = HexColor.hex($0) }))
+                    case .dark:
+                        ColorPicker("Text", selection: Binding(
+                            get: { HexColor.color(settings.darkText) },
+                            set: { settings.darkText = HexColor.hex($0) }))
+                        ColorPicker("Background", selection: Binding(
+                            get: { HexColor.color(settings.darkBackground) },
+                            set: { settings.darkBackground = HexColor.hex($0) }))
+                    }
+
+                    // A live sample, so a colour is judged as text rather than as a swatch.
+                    Text("$ who am i")
+                        .font(.system(size: settings.fontSize, design: .monospaced))
+                        .foregroundStyle(HexColor.color(tab == .light ? settings.lightText : settings.darkText))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .background(HexColor.color(tab == .light ? settings.lightBackground : settings.darkBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                } header: {
+                    Text("Colours")
+                }
+
+                Section {
+                    Button("Reset to defaults", role: .destructive) {
+                        settings.resetAppearance()
+                    }
                 } footer: {
-                    Text("On the list, not written yet.")
+                    // ⚠️ SAYS WHAT IT WILL TOUCH. A reset that does not name its scope is
+                    // one nobody dares press.
+                    Text("Puts size, shape, font and colours back. Connections and the sending pause are not affected.")
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .foregroundStyle(.secondary)
             }
             .formStyle(.grouped)
             .navigationTitle("Settings")
@@ -97,6 +237,35 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+}
+
+extension SettingsView {
+    /// Every monospaced face installed on this device.
+    ///
+    /// ⚠️ READ FROM THE DEVICE, NOT A LIST I WROTE DOWN. He wants his Nerd Font
+    /// available — "the same nerd font im using in my terminal" — and the honest way to
+    /// offer it is to show what is actually installed rather than name fonts that might
+    /// not be there. It also means nothing has to be bundled, so no font licence ships
+    /// with the app.
+    static var monospacedFonts: [String] {
+        #if os(macOS)
+        NSFontManager.shared.availableFontFamilies
+            .filter { family in
+                guard let members = NSFontManager.shared.availableMembers(ofFontFamily: family) else { return false }
+                return members.contains { ($0[3] as? NSNumber)?.uintValue ?? 0 & 0x00000001 != 0 }
+                    || family.lowercased().contains("mono")
+                    || family.lowercased().contains("code")
+                    || family.lowercased().contains("courier")
+                    || family.lowercased().contains("menlo")
+            }
+            .sorted()
+        #else
+        UIFont.familyNames.filter {
+            let n = $0.lowercased()
+            return n.contains("mono") || n.contains("code") || n.contains("courier") || n.contains("menlo")
+        }.sorted()
+        #endif
     }
 }
 

@@ -50,6 +50,37 @@ final class SyncedSettings {
 
     private enum Key {
         static let pauseSeconds = "dictation.pauseSeconds"
+        static let columns = "terminal.columns"
+        static let lines = "terminal.lines"
+        static let fontSize = "terminal.fontSize"
+        static let fontName = "terminal.fontName"
+        static let lightText = "terminal.light.text"
+        static let lightBackground = "terminal.light.background"
+        static let darkText = "terminal.dark.text"
+        static let darkBackground = "terminal.dark.background"
+    }
+
+    /// ⚠️ THE DEFAULTS ARE GENERIC, NOT HIS.
+    ///
+    /// On 2026-08-29 he asked for the appearance to be "user configurable with mine given
+    /// first launch as example". On 2026-09-04 he set a standing rule that outranks it:
+    /// "All apps are to ship agnostic and not use data specific to my personal use...
+    /// never use my personal information as a template."
+    ///
+    /// The later rule wins, and it is the right one — a first launch that arrives
+    /// pre-set to one person's terminal is that person's preference presented to
+    /// everyone else as a recommendation. So: the system monospaced face, the system
+    /// text and background colours, and a terminal's traditional 80 by 24.
+    enum Default {
+        static let columns = 80
+        static let lines = 24
+        static let fontSize = 13.0
+        /// Empty means the system monospaced face.
+        static let fontName = ""
+        static let lightText = "#000000"
+        static let lightBackground = "#FFFFFF"
+        static let darkText = "#FFFFFF"
+        static let darkBackground = "#1E1E1E"
     }
 
     /// How long a pause means he has finished a sentence.
@@ -58,18 +89,61 @@ final class SyncedSettings {
     /// repeatedly; 3s was "way too long"; 2s was "too long"; and he landed on
     /// "1.5 is a sweet spot" — independently the same value the old app had arrived at.
     var pauseSeconds: Double {
-        didSet {
-            guard pauseSeconds != oldValue else { return }
-            local.set(pauseSeconds, forKey: Key.pauseSeconds)
-            cloud.set(pauseSeconds, forKey: Key.pauseSeconds)
-            cloud.synchronize()
-            Diagnostics.shared.record(.app, "pause -> \(pauseSeconds)s")
-        }
+        didSet { store(pauseSeconds, Key.pauseSeconds, "pause -> \(pauseSeconds)s") }
+    }
+
+    // MARK: - Terminal appearance
+    //
+    // ⚠️ GEOMETRY SITS ABOVE THE TABS AND COLOUR SITS INSIDE THEM. His layout,
+    // 2026-09-04: columns, lines and size "are the same in either appearance", so they
+    // belong outside; the Light and Dark tabs hold "only the text color and background
+    // color". That is not a visual preference — it is the actual shape of the data, and
+    // a screen laid out against it would invite setting a column count "for dark mode".
+
+    var columns: Int { didSet { store(columns, Key.columns, "columns -> \(columns)") } }
+    var lines: Int { didSet { store(lines, Key.lines, "lines -> \(lines)") } }
+    var fontSize: Double { didSet { store(fontSize, Key.fontSize, "font size -> \(fontSize)") } }
+    var fontName: String { didSet { store(fontName, Key.fontName, "font -> \(fontName)") } }
+    var lightText: String { didSet { store(lightText, Key.lightText, "light text -> \(lightText)") } }
+    var lightBackground: String { didSet { store(lightBackground, Key.lightBackground, "light bg -> \(lightBackground)") } }
+    var darkText: String { didSet { store(darkText, Key.darkText, "dark text -> \(darkText)") } }
+    var darkBackground: String { didSet { store(darkBackground, Key.darkBackground, "dark bg -> \(darkBackground)") } }
+
+    /// Put everything on this screen back to the shipped values.
+    func resetAppearance() {
+        columns = Default.columns
+        lines = Default.lines
+        fontSize = Default.fontSize
+        fontName = Default.fontName
+        lightText = Default.lightText
+        lightBackground = Default.lightBackground
+        darkText = Default.darkText
+        darkBackground = Default.darkBackground
+        Diagnostics.shared.record(.app, "appearance reset to defaults")
+    }
+
+    private func store<T>(_ value: T, _ key: String, _ note: String) {
+        local.set(value, forKey: key)
+        cloud.set(value, forKey: key)
+        cloud.synchronize()
+        Diagnostics.shared.record(.app, note)
     }
 
     private init() {
         let stored = local.double(forKey: Key.pauseSeconds)
         pauseSeconds = stored > 0 ? stored : 1.5
+
+        let c = local.integer(forKey: Key.columns)
+        columns = c > 0 ? c : Default.columns
+        let l = local.integer(forKey: Key.lines)
+        lines = l > 0 ? l : Default.lines
+        let fs = local.double(forKey: Key.fontSize)
+        fontSize = fs > 0 ? fs : Default.fontSize
+        fontName = local.string(forKey: Key.fontName) ?? Default.fontName
+        lightText = local.string(forKey: Key.lightText) ?? Default.lightText
+        lightBackground = local.string(forKey: Key.lightBackground) ?? Default.lightBackground
+        darkText = local.string(forKey: Key.darkText) ?? Default.darkText
+        darkBackground = local.string(forKey: Key.darkBackground) ?? Default.darkBackground
 
         NotificationCenter.default.addObserver(
             forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,

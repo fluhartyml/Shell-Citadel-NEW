@@ -50,6 +50,31 @@ struct TerminalView: View {
     @State private var showingCamera = false
     @State private var showingScanner = false
 
+    @State private var settings = SyncedSettings.shared
+    @Environment(\.colorScheme) private var scheme
+
+    /// The face and size he chose, or the system monospaced face if he chose nothing.
+    private var terminalFont: Font {
+        settings.fontName.isEmpty
+            ? .system(size: settings.fontSize, design: .monospaced)
+            : .custom(settings.fontName, size: settings.fontSize)
+    }
+
+    /// ⚠️ HIS TEXT COLOUR FOR ORDINARY OUTPUT; THE SEMANTIC ONES STAY SEMANTIC.
+    ///
+    /// A failure has to stay orange and a status has to stay quiet even after he sets
+    /// the text colour to something else, because those colours are carrying meaning
+    /// rather than taste. Only `.output` and `.command` — the far end's own words, and
+    /// his — take the colour he picked.
+    private func colour(for kind: TranscriptLine.Kind) -> Color {
+        let chosen = HexColor.color(scheme == .dark ? settings.darkText : settings.lightText)
+        switch kind {
+        case .output: return chosen
+        case .command: return chosen.opacity(0.75)
+        case .status, .failure: return kind.color
+        }
+    }
+
     /// The composer's focus. The ONLY @FocusState in the app.
     @FocusState private var composerFocused: Bool
 
@@ -292,8 +317,13 @@ struct TerminalView: View {
                 LazyVStack(alignment: .leading, spacing: 6) {
                     ForEach(transcript) { line in
                         Text(line.text)
-                            .font(.system(.callout, design: .monospaced))
-                            .foregroundStyle(line.kind.color)
+                            // ⚠️ THE APPEARANCE SETTINGS ARE APPLIED HERE, AND IF THEY
+                            // WERE NOT, THAT SCREEN WOULD BE A LIE. A settings panel
+                            // whose controls change nothing is exactly the false green
+                            // this rebuild exists to stop making — it reports a state
+                            // the app does not actually have.
+                            .font(terminalFont)
+                            .foregroundStyle(colour(for: line.kind))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled)
                             .id(line.id)
@@ -301,7 +331,9 @@ struct TerminalView: View {
                 }
                 .padding(.horizontal)
                 .padding(.top, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .background(HexColor.color(scheme == .dark ? settings.darkBackground : settings.lightBackground))
             .onChange(of: transcript.count) { _, _ in
                 if let last = transcript.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }
             }
