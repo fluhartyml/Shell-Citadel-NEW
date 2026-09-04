@@ -36,20 +36,9 @@
 import Foundation
 import Observation
 
-// ⚠️ NOT WIRED UP YET, AND THE REASON IS NOT IN THIS FILE. 2026-09-04.
-//
-// The iCloud key-value store needs the iCloud capability on the App ID, and the wildcard
-// team provisioning profile does not carry it:
-//
-//   error: Provisioning profile "iOS Team Provisioning Profile: *" doesn't include the
-//          iCloud capability
-//
-// That is added in Xcode under Signing & Capabilities — Michael's account, his portal,
-// one click. It cannot be done from here and must not be worked around.
-//
-// Until then this class is written, compiled and unused: the pause lives in UserDefaults
-// per device. When the capability is on, attach the entitlements file and point
-// Dictation at SyncedSettings.shared.pauseSeconds.
+// ✅ LIVE as of 2026-09-04. The iCloud capability with Key-value storage is on the App
+// ID — Michael added it in Xcode's Signing & Capabilities while I walked him through it,
+// one step at a time. It could not be done from a command line and was not worked around.
 
 @MainActor
 @Observable

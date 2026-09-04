@@ -78,8 +78,11 @@ final class Dictation: ObservableObject {
     ///
     /// Half-second steps, 0.5 to 5, his ruling. Two seconds is the default because it
     /// is long enough to think mid-sentence and short enough not to feel broken.
+    /// ⚠️ WRITES THROUGH TO SyncedSettings, which is what carries it between his
+    /// devices. Writing it only to UserDefaults here would leave each device with its
+    /// own answer to a question about him rather than about the device.
     @Published var pauseSeconds: Double {
-        didSet { UserDefaults.standard.set(pauseSeconds, forKey: Key.pause) }
+        didSet { SyncedSettings.shared.pauseSeconds = pauseSeconds }
     }
 
     private enum Key { static let pause = "dictationPauseSeconds" }
@@ -129,11 +132,17 @@ final class Dictation: ObservableObject {
 
     private init() {
         let stored = UserDefaults.standard.double(forKey: Key.pause)
-        // ⚠️ 1.5 SECONDS, MEASURED TWICE. He tried 1s and it cut him off mid-sentence
-        // repeatedly; 3s was "way too long"; 2s was "too long"; and he landed on
-        // "1.5 is a sweet spot" — the same value the old app's 2026-09-02 commit had
-        // independently arrived at. Do not change it on a hunch.
-        pauseSeconds = stored > 0 ? stored : 1.5
+// ⚠️ THE PAUSE LIVES IN SyncedSettings, NOT HERE. His rule, 2026-09-04:
+        // "the sliders must be persistant across ios and mac." How long he pauses before
+        // a sentence is finished is a fact about how HE talks, not about this device, so
+        // rediscovering 1.5 seconds on the phone, the iPad and the Mac is three times the
+        // work for one answer.
+        //
+        // The mute toggles deliberately do NOT sync — "i dont see a connection between
+        // speaker mute microphone mute and the sliders menu." A mute is a fact about a
+        // ROOM, and syncing it would silence the phone in his pocket because the iPad is
+        // somewhere with company.
+        pauseSeconds = SyncedSettings.shared.pauseSeconds
     }
 
     // MARK: - Arming
