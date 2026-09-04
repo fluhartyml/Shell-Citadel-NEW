@@ -127,6 +127,20 @@ struct Connection: Codable, Identifiable, Equatable, Sendable {
     /// reads timestamps.
     var stampMessages = false
 
+    /// Which voice reads this connection's output aloud. nil means the system voice.
+    ///
+    /// ⚠️ PER CONNECTION, AND THAT IS THE ENTIRE POINT. His idea, 2026-09-04: assign a
+    /// different voice to each connection "so you could tell a different terminal tab was
+    /// talking" — the voice becomes the tab's identity, and he knows which machine is
+    /// speaking without looking at the screen. That is worth more to him than it sounds:
+    /// he listens to this app from another room.
+    ///
+    /// ⚠️ nil BY DEFAULT, AND IT STAYS THAT WAY UNLESS HE PICKS. He has corrected the
+    /// same mistake twice — never override the voice he set in his own OS settings. A
+    /// per-connection voice is a CHOICE he makes here; the absence of a choice is not a
+    /// licence to choose for him.
+    var voiceIdentifier: String?
+
     /// True when the host is a name rather than a literal address, which is the only
     /// case where the fallback means anything.
     var hostIsName: Bool {

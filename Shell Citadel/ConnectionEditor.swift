@@ -5,6 +5,7 @@
 //  Where a connection is set up. Every field on this screen has a scar behind it.
 //
 
+import AVFoundation
 import SwiftUI
 
 struct ConnectionEditor: View {
@@ -216,6 +217,25 @@ struct ConnectionEditor: View {
 
                     // Item 17 — kept, and reframed as the generic feature it is.
                     Toggle("Timestamp each message", isOn: $connection.stampMessages)
+                }
+
+                // ⚠️ THE VOICE BELONGS TO THE CONNECTION, NOT THE DEVICE. His design,
+                // 2026-09-04: "for each connection card has a speech voice drop down."
+                //
+                // The reason is not decoration. He listens to this app from another room,
+                // so with more than one connection open the voice is how he knows WHICH
+                // machine just spoke — the identity moves into the audio, where he
+                // actually is, instead of staying on a screen he is not looking at.
+                //
+                // ⚠️ "System default" IS THE FIRST ENTRY AND THE DEFAULT VALUE. He has
+                // twice corrected an overridden voice: use the one he set in his own OS
+                // settings unless he says otherwise here. An unset picker must never
+                // quietly become a choice.
+                Picker("Voice", selection: $connection.voiceIdentifier) {
+                    Text("System default").tag(String?.none)
+                    ForEach(SpokenOutput.availableVoices, id: \.identifier) { voice in
+                        Text(voice.name).tag(String?.some(voice.identifier))
+                    }
                 }
             } header: {
                 HStack {

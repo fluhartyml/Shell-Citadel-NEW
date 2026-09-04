@@ -33,6 +33,7 @@ struct TerminalView: View {
     @State private var showingConnection = false
     @State private var showingAbout = false
     @State private var showingSettings = false
+    @State private var light = LinkLight()
     @State private var replyTask: Task<Void, Never>?
     @State private var replyOffset = 0
 
@@ -100,7 +101,12 @@ struct TerminalView: View {
                 }
                 ToolbarItem(placement: .automatic) {
                     Button { showingConnection = true } label: {
-                        Label("Connection", systemImage: "slider.horizontal.3")
+                        // ⚠️ HIS PICK, 2026-09-04: "phone connection fill for
+                        // connections cards." A handset with signal arcs — a modem
+                        // reaching out, which is what this sheet sets up. It also stops
+                        // this button and Settings drawing the same sliders glyph, which
+                        // he spotted the moment both were on screen.
+                        Label("Connection", systemImage: "phone.connection.fill")
                     }
                 }
                 ToolbarItem(placement: .automatic) {
@@ -114,6 +120,9 @@ struct TerminalView: View {
                               systemImage: spoken.isEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
                     }
                     .tint(spoken.isEnabled ? .accentColor : .red)
+                }
+                ToolbarItem(placement: .navigation) {
+                    LinkLightView(light: light)
                 }
                 ToolbarItem(placement: .automatic) {
                     Button { showingSettings = true } label: {
@@ -364,6 +373,7 @@ struct TerminalView: View {
                 let stream = try await session.replyLines(path: connection.replyPath, startingAtByte: replyOffset)
                 for try await chunk in stream {
                     transcript.append(.init(kind: .output, text: chunk.text))
+                    light.didReceive()
                     replyOffset = chunk.offsetAfter
                     // Speaking it is the point of the mode: he is not looking at the
                     // screen, which is why the reply channel is sentences and not a
@@ -391,6 +401,7 @@ struct TerminalView: View {
             replyTask = nil
             await session.close()
             isConnected = false
+            light.markDown()
             transcript.append(.init(kind: .status, text: "Disconnected."))
             return
         }
@@ -423,6 +434,7 @@ struct TerminalView: View {
                 transcript.append(.init(kind: .status, text: "First time connecting to this machine \u{2014} its key has been recorded."))
             }
             transcript.append(.init(kind: .status, text: "Connected."))
+            light.start(pinging: session)
             composerFocused = true
             if connection.mode == .tmux { startFollowingReplies() }
         } catch {
@@ -447,6 +459,7 @@ struct TerminalView: View {
             transcript.append(.init(kind: .output, text: path))
         } catch {
             transcript.append(.init(kind: .failure, text: error.localizedDescription))
+            light.markDown()
         }
         composerFocused = true
     }
@@ -503,6 +516,9 @@ struct TerminalView: View {
         if connection.mode == .tmux {
             do {
                 try await session.sendToSession(command, session: connection.tmuxSession, tag: Self.sourceTag, stamped: connection.stampMessages)
+                // ⚠️ ONLY IN ATTACH MODE. In Direct mode the answer comes back on the
+                // same call and the wait is already over by the time this line runs.
+                light.didSend()
             } catch {
                 transcript.append(.init(kind: .failure, text: error.localizedDescription))
             }

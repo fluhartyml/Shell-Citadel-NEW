@@ -54,6 +54,18 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
 
     private(set) var isSpeaking = false
 
+    /// Every voice installed for English, for the per-connection picker.
+    ///
+    /// ⚠️ READ FROM THE DEVICE, NEVER A HARDCODED LIST. What is installed differs by
+    /// device and changes when he downloads the Enhanced and Premium voices — which he
+    /// has none of yet, checked 2026-09-04. A fixed list would offer voices that are not
+    /// there and hide the ones that are.
+    static var availableVoices: [AVSpeechSynthesisVoice] {
+        AVSpeechSynthesisVoice.speechVoices()
+            .filter { $0.language.hasPrefix("en") }
+            .sorted { $0.name < $1.name }
+    }
+
     private let synthesizer = AVSpeechSynthesizer()
 
     private override init() {
@@ -67,6 +79,13 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
     /// ⚠️ THE MICROPHONE IS SILENCED BEFORE THE FIRST WORD, not after the last one.
     /// "After" is precisely the window in which the app hears itself, and that loop has
     /// bitten twice — once through a speaker and once through AirPods.
+    /// The voice to use, or nil for whatever the system is set to.
+    ///
+    /// ⚠️ SET FROM THE CONNECTION, NOT CHOSEN HERE. This object never picks a voice on
+    /// its own — nil means AVSpeechSynthesizer uses the system voice, which is the one
+    /// he set in his own OS settings and the one he has twice told me not to override.
+    var voiceIdentifier: String?
+
     func speak(_ text: String) {
         guard isEnabled else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

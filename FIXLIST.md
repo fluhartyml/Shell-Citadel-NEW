@@ -41,7 +41,7 @@ decision unless he made it.
 
 | # | Missing | His words / why | Asked |
 |---|---------|-----------------|-------|
-| 28 | Saved connections — a library, not one | One shared list, each with a button that makes it live in the tab you are in | 2026-08-29 |
+| 28 | Saved connections — a library, not one | One shared list, each with a button that makes it live in the tab you are in. **Each card carries a `teletype` icon** — his call 2026-09-04, and it pairs with `phone.connection.fill` on the toolbar button that edits one. **Open question: whether the speech voice picker lives on the card or in Settings** — he said the card first, then that voices are set in settings, and I have not asked which he meant. | 2026-08-29 |
 | 29 | Tabs | "we may need to add tab abilities to citadel so i can have multiple terminals open" — and the reason this is not just another SSH client | 2026-08-29 |
 | 30 | A dumb terminal that is actually dumb | "I want a dumb terminal to be a dumb terminal" — no app voice, no transcript rows, no prompt glyph drawn by the app | 2026-08-29 |
 | 31 | A real PTY session | Direct mode runs each command in a NEW shell over an exec channel; a PTY is one continuous shell, which is what makes interactive programs and Ctrl-C behave | 2026-08-29 |
