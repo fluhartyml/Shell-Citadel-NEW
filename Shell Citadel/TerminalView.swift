@@ -429,6 +429,18 @@ struct TerminalView: View {
         // would be worse than either one alone.
         if isDemo { endDemo() }
 
+        // ⚠️ SAVED BEFORE THE ATTEMPT, AND KEPT WHETHER IT WORKS OR NOT. His rule,
+        // 2026-09-04: a manually entered connection "gets saved to the connection good
+        // or unsucessful connect so the user can go to the connection cards and
+        // proofread for typos."
+        //
+        // Saving only on success is backwards. A connection that FAILED is the one worth
+        // keeping, because the failure is usually a typo and the typo is invisible until
+        // you can look at it again. It cost him an afternoon today: the account read
+        // michaelfuharty, missing the l, and the app answered "SSHClientError 4" — a
+        // discarded connection would have meant retyping the same mistake from memory.
+        store.save(connection)
+
         transcript.append(.init(kind: .status, text: "Connecting to \(connection.host)\u{2026}"))
         do {
             try await session.connect(to: connection, password: password)
@@ -457,6 +469,11 @@ struct TerminalView: View {
             // Say the real reason. "Could not reach the server" for every cause is what
             // turned one stale address into an hour of guessing on 2026-09-04.
             transcript.append(.init(kind: .failure, text: error.localizedDescription))
+            // ⚠️ AND SAY WHERE TO GO AND LOOK. The saved connection is only useful for
+            // proofreading if he knows it was kept.
+            transcript.append(.init(kind: .status,
+                                    text: "The connection was saved as typed \u{2014} open Connection settings to check it for a typo."))
+            light.markDown()
         }
     }
 
