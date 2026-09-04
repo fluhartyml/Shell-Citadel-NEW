@@ -99,6 +99,42 @@ struct ConnectionEditor: View {
                 Text("The password is kept in this device's Keychain \u{2014} never in iCloud, never in a backup. On a Mac, turn on Remote Login in System Settings \u{203A} General \u{203A} Sharing.")
             }
 
+            Section {
+                Picker("Mode", selection: $connection.mode) {
+                    ForEach(Connection.Mode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                if connection.mode == .claude {
+                    LabeledContent("Session") {
+                        TextField("claude", text: $connection.tmuxSession)
+                            .multilineTextAlignment(.trailing)
+                            .autocorrectionDisabled()
+                            #if os(iOS)
+                            .textInputAutocapitalization(.never)
+                            #endif
+                    }
+                    LabeledContent("Replies file") {
+                        TextField("~/session-output.txt", text: $connection.replyPath)
+                            .multilineTextAlignment(.trailing)
+                            .autocorrectionDisabled()
+                            #if os(iOS)
+                            .textInputAutocapitalization(.never)
+                            #endif
+                    }
+                }
+            } header: {
+                Text("Mode")
+            } footer: {
+                // These are two different things, not one thing with a switch, and
+                // saying so here is cheaper than him discovering it.
+                Text(connection.mode == .claude
+                     ? "What you type is handed to a running session, and what comes back is what Claude chose to say \u{2014} not the terminal's output. Needs tmux on that machine."
+                     : "Type a command, the machine answers. Nothing else is running.")
+            }
+
             if let remembered = connection.lastKnownAddress {
                 Section {
                     LabeledContent("Last reached at", value: remembered)

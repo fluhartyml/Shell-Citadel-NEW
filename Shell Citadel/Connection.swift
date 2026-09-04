@@ -41,6 +41,41 @@ struct Connection: Codable, Identifiable, Equatable, Sendable {
     /// for him to configure, and neither one's failure is silent.
     var lastKnownAddress: String?
 
+    // MARK: - Step 5 — reaching the Claude session
+
+    /// Which mode this connection runs in.
+    ///
+    /// ⚠️ THE TWO ARE NOT THE SAME APP WITH A SETTING. `.shell` is a terminal: you type
+    /// a command, the Mac answers. `.claude` is a CONVERSATION: what you type is handed
+    /// into a running session, and what comes back is what Claude chose to SAY.
+    enum Mode: String, Codable, CaseIterable, Sendable {
+        case shell
+        case claude
+
+        var title: String {
+            switch self {
+            case .shell: "Terminal"
+            case .claude: "Claude"
+            }
+        }
+    }
+
+    var mode: Mode = .shell
+
+    /// The tmux session to hand messages to. Neutral by default — a stranger's first run
+    /// should not arrive pre-filled with someone else's session name.
+    var tmuxSession = "claude"
+
+    /// A file the far end appends plain sentences to, read as the reply channel.
+    ///
+    /// ⚠️ WHY A SIDE FILE AND NOT THE TERMINAL. Claude Code inside tmux emits a terminal
+    /// STREAM — escape codes, spinners, redraws. Speaking that aloud is gibberish and
+    /// parsing it back into sentences is a losing game. So this app never reads the
+    /// terminal: it types into the session, and it reads a channel Claude writes
+    /// deliberately. A consequence worth stating plainly: it does not see command
+    /// output, it sees what Claude chose to say. That is the design, not a gap.
+    var replyPath = "~/session-output.txt"
+
     /// True when the host is a name rather than a literal address, which is the only
     /// case where the fallback means anything.
     var hostIsName: Bool {

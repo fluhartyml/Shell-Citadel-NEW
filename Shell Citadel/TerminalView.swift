@@ -32,6 +32,8 @@ struct TerminalView: View {
     @State private var isBusy = false
     @State private var showingConnection = false
     @State private var showingAbout = false
+    @State private var replyTask: Task<Void, Never>?
+    @State private var replyOffset = 0
 
     // The "+" beside the composer. Michael, 2026-08-25: "I want to add a plus next ti
     // the predictive text boxes to add a camera capture function" — "image or scan".
@@ -276,6 +278,39 @@ struct TerminalView: View {
 
     // MARK: - Doing things
 
+    /// The source tag. More than one app types into the same session, and without this
+    /// Claude cannot tell which one he is speaking from.
+    static var sourceTag: String {
+        #if os(macOS)
+        "SC-Mac"
+        #else
+        "SC"
+        #endif
+    }
+
+    /// Follows the reply file so what Claude says arrives on its own, without being
+    /// asked for. Cancelled and restarted with the connection, never left running.
+    private func startFollowingReplies() {
+        replyTask?.cancel()
+        replyTask = Task {
+            do {
+                let stream = try await session.replyLines(path: connection.replyPath, startingAtByte: replyOffset)
+                for try await chunk in stream {
+                    transcript.append(.init(kind: .output, text: chunk.text))
+                    replyOffset = chunk.offsetAfter
+                    // Speaking it is the point of the mode: he is not looking at the
+                    // screen, which is why the reply channel is sentences and not a
+                    // terminal stream in the first place.
+                    spoken.speak(chunk.text)
+                }
+            } catch {
+                if !Task.isCancelled {
+                    transcript.append(.init(kind: .failure, text: error.localizedDescription))
+                }
+            }
+        }
+    }
+
     private func restore() {
         if let first = store.connections.first {
             connection = first
@@ -285,6 +320,8 @@ struct TerminalView: View {
 
     private func toggleConnection() async {
         if isConnected {
+            replyTask?.cancel()
+            replyTask = nil
             await session.close()
             isConnected = false
             transcript.append(.init(kind: .status, text: "Disconnected."))
@@ -315,6 +352,7 @@ struct TerminalView: View {
             }
             transcript.append(.init(kind: .status, text: "Connected."))
             composerFocused = true
+            if connection.mode == .claude { startFollowingReplies() }
         } catch {
             // Say the real reason. "Could not reach the server" for every cause is what
             // turned one stale address into an hour of guessing on 2026-09-04.
@@ -348,6 +386,19 @@ struct TerminalView: View {
         transcript.append(.init(kind: .command, text: "$ \(command)"))
         isBusy = true
         defer { isBusy = false }
+        // ⚠️ TWO DIFFERENT THINGS, NOT ONE WITH A FLAG. In Claude mode the message is
+        // HANDED to a running session and the answer arrives later on its own channel;
+        // there is no output to wait for here, and waiting would look like a hang.
+        if connection.mode == .claude {
+            do {
+                try await session.sendToSession(command, session: connection.tmuxSession, tag: Self.sourceTag)
+            } catch {
+                transcript.append(.init(kind: .failure, text: error.localizedDescription))
+            }
+            composerFocused = true
+            return
+        }
+
         do {
             let output = try await session.runTrackingDirectory(command)
             if !output.isEmpty {
