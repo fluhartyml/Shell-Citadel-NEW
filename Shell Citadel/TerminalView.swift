@@ -121,6 +121,28 @@ struct TerminalView: View {
                     }
                     .tint(spoken.isEnabled ? .accentColor : .red)
                 }
+                // ⚠️ THE MICROPHONE SITS BESIDE THE SPEAKER. His words, 2026-09-04:
+                // "a mic is supposed to be next to the speaker."
+                //
+                // They are one pair — the two halves of talking to it — and separating
+                // them meant the answer to "is it listening?" was in a different place
+                // from the answer to "is it talking?", which are the same question asked
+                // twice. Same colours as the composer had: red muted, green live.
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        if dictation.isListening {
+                            dictation.stop()
+                            VoiceCoordinator.shared.didStopListening()
+                        } else {
+                            VoiceCoordinator.shared.willListen()
+                            dictation.start()
+                        }
+                    } label: {
+                        Label(dictation.isListening ? "Microphone on" : "Microphone muted",
+                              systemImage: dictation.isListening ? "mic.fill" : "mic.slash")
+                    }
+                    .tint(dictation.isListening ? .green : .red)
+                }
                 ToolbarItem(placement: .navigation) {
                     LinkLightView(light: light)
                 }
@@ -288,43 +310,11 @@ struct TerminalView: View {
             }
             .disabled(!isConnected || isBusy)
 
-            // ⚠️ THE MICROPHONE IS A TOGGLE HE CAN ALWAYS REACH, and its colour IS the
-            // state. Michael has said repeatedly that he forgets to mute — the failure
-            // is not knowing whether it is listening, so the control has to answer that
-            // question by looking at it rather than by being tapped.
-            Button {
-                if dictation.isListening {
-                    dictation.stop()
-                    VoiceCoordinator.shared.didStopListening()
-                } else {
-                    VoiceCoordinator.shared.willListen()
-                    dictation.start()
-                }
-            } label: {
-                // ⚠️ HIS COLOURS, AND THEY ARE THE OPPOSITE OF WHAT WAS HERE.
-                //
-                // 2026-09-04: "add the red mute mic and green [wiggling] while noise is
-                // present mic glyphs."
-                //
-                // This drew RED while listening, which is backwards from every other
-                // control he owns — red is the state you want to leave, not the state
-                // that is working. Muted is red. Live is green.
-                //
-                // ⚠️ AND GREEN ALONE IS NOT ENOUGH, WHICH IS THE POINT OF THE MOVEMENT.
-                // A green mic says the app THINKS it is listening. It says nothing about
-                // whether the microphone is actually picking anything up — and that gap
-                // is exactly where his afternoon went: his voice was not reaching it and
-                // nothing on screen distinguished "listening to silence" from "listening
-                // to you". `Dictation.level` is a real measurement of the room, so a
-                // glyph that moves with it answers the question the colour cannot.
-                Image(systemName: dictation.isListening ? "mic.fill" : "mic.slash")
-                    .font(.title2)
-                    .foregroundStyle(dictation.isListening ? .green : .red)
-                    .scaleEffect(dictation.isListening ? 1.0 + CGFloat(dictation.level) * 0.45 : 1.0)
-                    .animation(.easeOut(duration: 0.12), value: dictation.level)
-                    .accessibilityLabel(dictation.isListening ? "Microphone on" : "Microphone muted")
-            }
-            .disabled(!isConnected || isBusy)
+            // ⚠️ THE MICROPHONE USED TO BE HERE AND IS NOW IN THE TOOLBAR, BESIDE THE
+            // SPEAKER — his placement. It is not duplicated: two controls driving one
+            // piece of state is the same mistake as the two identical sliders glyphs he
+            // caught earlier, except this pair could disagree on screen while agreeing
+            // underneath, which is worse.
 
             // ⚠️ THE EMPTY BOX IS THE INSTRUCTION. "Not connected" states a problem and
             // offers nothing; `ssh user@server.local` is the answer to it, sitting in the
