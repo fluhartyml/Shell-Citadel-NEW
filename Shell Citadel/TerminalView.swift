@@ -140,6 +140,15 @@ struct TerminalView: View {
                     Button(isConnected ? "Disconnect" : "Connect") {
                         Task { await toggleConnection() }
                     }
+                    // ⚠️ RED WHILE CONNECTED, BECAUSE THE COLOUR DESCRIBES WHAT THE
+                    // BUTTON DOES, NOT WHAT THE STATE IS. His call, 2026-09-04: "the
+                    // connect pill changes to red disconnect while connected."
+                    //
+                    // It reads the opposite way to the status dot beside it, and that is
+                    // correct rather than confusing: green there means the link is good;
+                    // red here means pressing this ends it. One is a report, the other is
+                    // a warning, and they are never both describing the same thing.
+                    .tint(isConnected ? .red : .accentColor)
                     .disabled(isBusy || connection.host.isEmpty || connection.username.isEmpty)
                 }
                 // ⚠️ THE MICROPHONE AND THE SPEAKER ARE A PAIR AND STAY ADJACENT.
