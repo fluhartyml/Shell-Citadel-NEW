@@ -173,8 +173,28 @@ struct Connection: Codable, Identifiable, Equatable, Sendable {
     func normalised() -> Connection {
         var copy = self
 
-        // Case preserved. Whitespace anywhere in it removed, not just the ends.
-        copy.username = username.filter { !$0.isWhitespace }
+        // ⚠️ CASE PRESERVED. EVERYTHING UNIX CANNOT ACCEPT REMOVED.
+        //
+        // His rule, 2026-09-04: "i want the autosave not to allow typos it knows 100%
+        // are typos (like errant spaces or illegal charaters as per unix)."
+        //
+        // The bar is his: 100% certain. A unix account name lives in a colon-delimited
+        // line in /etc/passwd, so a colon is structurally impossible; a slash would make
+        // it a path; whitespace and control characters cannot appear at all; and the
+        // rest of what is stripped here are shell metacharacters that no account name
+        // has ever legitimately contained. Removing those is not a guess about intent —
+        // there is no intent they could serve.
+        //
+        // ⚠️ WHAT IS NOT STRIPPED MATTERS AS MUCH. Capitals stay, because the account is
+        // case sensitive and some systems really do have them. Dots, hyphens and
+        // underscores stay, because they are legal and common. This tidies what cannot
+        // be right; it never improves what merely looks unusual.
+        copy.username = username
+            .filter { $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" || $0 == "_" }
+
+        // A name cannot begin with a hyphen — every command that takes it would read it
+        // as a flag.
+        while copy.username.hasPrefix("-") { copy.username.removeFirst() }
 
         // Lowercased, and reduced to what is legal in a host name: letters, digits,
         // hyphen and dot. Anything else was a typo, a stray quote, or a keyboard being
