@@ -56,10 +56,20 @@ struct AboutView: View {
                     }
                 }
             } header: {
-                Text("Built with")
-            } footer: {
-                Text("Every component this app links, and the licence each one ships under. Tap one for its full text.")
-                .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Text("Built with")
+                    MoreInfo(
+                        title: "the components",
+                        detail: """
+                        Every component this app links, and the licence each one ships \
+                        under. Open one for its full text.
+
+                        These notices are here because the licences require it \u{2014} \
+                        MIT asks that the copyright and permission notices travel with \
+                        the software, and Apache 2.0 carries its own attribution duty.
+                        """
+                    )
+                }
             }
 
             Section {
@@ -78,12 +88,26 @@ struct AboutView: View {
                 .font(.system(.footnote, design: .monospaced))
                 .textSelection(.enabled)
             } header: {
-                Text("Build")
-            } footer: {
-                Text(BuildStamp.isStamped
-                     ? "The build number counts commits, so it only ever goes up. It is the same number Xcode and App Store Connect show, and it points at the commit beside it. A \u{201C}+\u{201D} after the commit means this build carries changes that were never committed."
-                     : "This build was made before build numbering existed \u{2014} so it is older than any build that names a commit here.")
-                .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Text("Build")
+                    MoreInfo(
+                        title: "the build number",
+                        detail: BuildStamp.isStamped
+                        ? """
+                          The build number counts commits, so it only ever goes up.
+
+                          It is the same number Xcode and App Store Connect show, and it \
+                          points at the commit beside it.
+
+                          A "+" after the commit means this build carries changes that \
+                          were never committed.
+                          """
+                        : """
+                          This build was made before build numbering existed \u{2014} so \
+                          it is older than any build that names a commit here.
+                          """
+                    )
+                }
             }
 
             // ⚠️ STEP 0.3. This is the screen that answers "what is it doing right
@@ -104,22 +128,55 @@ struct AboutView: View {
                 .font(.system(.footnote, design: .monospaced))
                 .textSelection(.enabled)
             } header: {
-                Text("Now")
-            } footer: {
-                Text("What the app is doing at this moment. If something looks wrong, this row says what it actually is rather than what it appears to be.")
-                .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Text("Now")
+                    MoreInfo(
+                        title: "what the app is doing",
+                        detail: """
+                        What the app is doing at this moment.
+
+                        If something looks wrong, these rows say what it actually is \
+                        rather than what it appears to be.
+                        """
+                    )
+                }
             }
 
             Section {
-                NavigationLink("Recent activity") {
+                NavigationLink {
                     DiagnosticsLogView()
+                } label: {
+                    HStack {
+                        Text("Recent activity")
+                        Spacer()
+                        // ⚠️ THE CHEVRON IS DRAWN BY HAND ON PURPOSE. macOS does not add
+                        // one to a NavigationLink inside a List in a sheet, so the row
+                        // read as a heading rather than a way in \u{2014} he said so:
+                        // it "doesn't look tappable". A row that opens something has to
+                        // look like a row that opens something.
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
                 }
-            } footer: {
-                // Reading a log aloud is exactly the work this is meant to remove, so
-                // the record is here to be COPIED, not recited. Once there is a
-                // connection it writes itself to the Mac and this becomes the fallback.
-                Text("A timestamped record of focus, microphone, speech and connection changes. Nothing private is recorded \u{2014} no passwords, no commands, no transcript.")
-                .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                HStack {
+                    Text("Recent activity")
+                    // Reading a log aloud is exactly the work this is meant to remove, so
+                    // the record is here to be COPIED, not recited. Once there is a
+                    // connection it writes itself to the Mac and this becomes the fallback.
+                    MoreInfo(
+                        title: "the activity record",
+                        detail: """
+                        A timestamped record of focus, microphone, speech and connection \
+                        changes.
+
+                        Nothing private is recorded \u{2014} no passwords, no commands, \
+                        no transcript.
+                        """
+                    )
+                }
             }
         }
         // ⚠️ THE FOOTERS WERE TRUNCATED WITH AN ELLIPSIS. On macOS a List footer takes

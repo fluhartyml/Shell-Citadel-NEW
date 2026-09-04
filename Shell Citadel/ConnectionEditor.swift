@@ -7,39 +7,6 @@
 
 import SwiftUI
 
-/// A round ⓘ that opens a popover.
-///
-/// ⚠️ THIS REPLACES THE PARAGRAPHS THAT USED TO SIT UNDER EVERY SECTION. His words,
-/// 2026-09-04: "the hints are too much, they dont look normalized or within apples
-/// standards." He was right — Apple's own settings screens carry one short line under a
-/// section, or nothing at all, and the detail lives behind a control you can ignore.
-///
-/// The detail is not deleted, because every line of it was written down for a reason
-/// somebody paid for. It is moved somewhere it costs nothing to skip.
-private struct MoreInfo: View {
-    let title: String
-    let detail: String
-    @State private var showing = false
-
-    var body: some View {
-        Button {
-            showing = true
-        } label: {
-            Image(systemName: "info.circle")
-        }
-        .buttonStyle(.borderless)
-        .accessibilityLabel("More about \(title)")
-        .popover(isPresented: $showing, arrowEdge: .bottom) {
-            Text(detail)
-                .font(.callout)
-                .multilineTextAlignment(.leading)
-                .padding()
-                .frame(maxWidth: 320)
-                .presentationCompactAdaptation(.popover)
-        }
-    }
-}
-
 struct ConnectionEditor: View {
     @Binding var connection: Connection
     @Binding var password: String
