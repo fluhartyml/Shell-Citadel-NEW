@@ -1,0 +1,222 @@
+//
+//  TerminalView.swift
+//  Shell Citadel
+//
+//  Roadmap step 1. Type a command, see the real answer, and `cd` sticks.
+//
+//  ⚠️ THE COMPOSER IS THE ONLY VIEW IN THIS APP THAT TAKES THE KEYBOARD (step 0.2).
+//  There is no invisible key catcher here and there must never be one. The transcript
+//  is a ScrollView of text — it is not focusable, it does not hold first responder, and
+//  it cannot take the caret back off the field he is typing into. That single sentence
+//  is the difference between this app and the one it replaced.
+//
+
+import SwiftUI
+
+struct TerminalView: View {
+    @State private var store = ConnectionStore()
+    @State private var session = SSHSession()
+    @State private var diagnostics = Diagnostics.shared
+
+    @State private var connection = Connection()
+    @State private var password = ""
+    @State private var transcript: [TranscriptLine] = []
+    @State private var input = ""
+    @State private var isConnected = false
+    @State private var isBusy = false
+    @State private var showingConnection = false
+    @State private var showingAbout = false
+
+    /// The composer's focus. The ONLY @FocusState in the app.
+    @FocusState private var composerFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                transcriptView
+                Divider()
+                composer
+            }
+            .navigationTitle(connection.name)
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(isConnected ? "Disconnect" : "Connect") {
+                        Task { await toggleConnection() }
+                    }
+                    .disabled(isBusy || connection.host.isEmpty || connection.username.isEmpty)
+                }
+                ToolbarItem(placement: .automatic) {
+                    Button { showingConnection = true } label: {
+                        Label("Connection", systemImage: "slider.horizontal.3")
+                    }
+                }
+                ToolbarItem(placement: .automatic) {
+                    Button { showingAbout = true } label: {
+                        Label("About", systemImage: "info.circle")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingConnection) {
+                NavigationStack {
+                    ConnectionEditor(connection: $connection, password: $password)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") {
+                                    store.save(connection)
+                                    _ = CredentialStore.save(password: password, for: connection)
+                                    showingConnection = false
+                                }
+                            }
+                        }
+                }
+            }
+            .sheet(isPresented: $showingAbout) { AboutView() }
+        }
+        .onAppear(perform: restore)
+    }
+
+    // MARK: - Pieces
+
+    private var transcriptView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    ForEach(transcript) { line in
+                        Text(line.text)
+                            .font(.system(.callout, design: .monospaced))
+                            .foregroundStyle(line.kind.color)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                            .id(line.id)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+            }
+            .onChange(of: transcript.count) { _, _ in
+                if let last = transcript.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }
+            }
+        }
+    }
+
+    private var composer: some View {
+        HStack(spacing: 8) {
+            TextField(isConnected ? "Type a command" : "Not connected", text: $input)
+                .font(.system(.body, design: .monospaced))
+                .autocorrectionDisabled()
+                #if os(iOS)
+                .textInputAutocapitalization(.never)
+                #endif
+                .focused($composerFocused)
+                .disabled(!isConnected || isBusy)
+                .onSubmit { Task { await send() } }
+                // Recording the focus change is the whole of step 0.3 in one line: the
+                // question "who has the keyboard" now has an answer that is written
+                // down rather than inferred from a blinking cursor.
+                .onChange(of: composerFocused) { _, focused in
+                    diagnostics.focusChanged(to: focused ? "composer" : "none")
+                }
+
+            Button {
+                Task { await send() }
+            } label: {
+                Image(systemName: "arrow.up.circle.fill").font(.title2)
+            }
+            .disabled(!isConnected || isBusy || input.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        .padding(10)
+    }
+
+    // MARK: - Doing things
+
+    private func restore() {
+        if let first = store.connections.first {
+            connection = first
+            password = CredentialStore.password(for: first) ?? ""
+        }
+    }
+
+    private func toggleConnection() async {
+        if isConnected {
+            await session.close()
+            isConnected = false
+            transcript.append(.init(kind: .status, text: "Disconnected."))
+            return
+        }
+
+        isBusy = true
+        defer { isBusy = false }
+        transcript.append(.init(kind: .status, text: "Connecting to \(connection.host)\u{2026}"))
+        do {
+            try await session.connect(to: connection, password: password)
+            isConnected = true
+
+            // Remember the address that actually worked, so a name that stops resolving
+            // has somewhere to fall back to. This is the second half of the addressing
+            // decision and it costs one line.
+            if let used = await session.addressUsed, used != connection.host {
+                connection.lastKnownAddress = used
+                store.save(connection)
+                transcript.append(.init(kind: .status, text: "Reached it at \(used) \u{2014} the name did not resolve."))
+            } else if let used = await session.addressUsed {
+                connection.lastKnownAddress = used
+                store.save(connection)
+            }
+
+            if await session.trustedOnFirstUse {
+                transcript.append(.init(kind: .status, text: "First time connecting to this machine \u{2014} its key has been recorded."))
+            }
+            transcript.append(.init(kind: .status, text: "Connected."))
+            composerFocused = true
+        } catch {
+            // Say the real reason. "Could not reach the server" for every cause is what
+            // turned one stale address into an hour of guessing on 2026-09-04.
+            transcript.append(.init(kind: .failure, text: error.localizedDescription))
+        }
+    }
+
+    private func send() async {
+        let command = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !command.isEmpty else { return }
+        input = ""
+        transcript.append(.init(kind: .command, text: "$ \(command)"))
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let output = try await session.runTrackingDirectory(command)
+            if !output.isEmpty { transcript.append(.init(kind: .output, text: output)) }
+        } catch {
+            transcript.append(.init(kind: .failure, text: error.localizedDescription))
+            await session.markDisconnected()
+            isConnected = false
+        }
+        composerFocused = true
+    }
+}
+
+/// One line in the transcript.
+struct TranscriptLine: Identifiable {
+    enum Kind {
+        case command, output, status, failure
+
+        var color: Color {
+            switch self {
+            case .command: .accentColor
+            case .output: .primary
+            case .status: .secondary
+            case .failure: .orange
+            }
+        }
+    }
+
+    let id = UUID()
+    let kind: Kind
+    let text: String
+}
+
+#Preview {
+    TerminalView()
+}
