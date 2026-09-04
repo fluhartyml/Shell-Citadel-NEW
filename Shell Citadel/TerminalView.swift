@@ -56,6 +56,22 @@ struct TerminalView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // ⚠️ THE STATUS ROW, DIRECTLY UNDER THE TOOLBAR — his placement: "the
+                // connection status should be on the row below the sliders."
+                //
+                // It reads full width instead of competing for toolbar space, which is
+                // what the waiting clock needs: the seconds change once a second and a
+                // number that resizes its own container is a number that makes the row
+                // twitch. Here it has room to count without moving anything.
+                HStack {
+                    LinkLightView(light: light)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(.bar)
+                Divider()
+
                 // ⚠️ ALWAYS ON SCREEN WHILE THE DEMO RUNS, AND THERE IS NO WAY TO CLOSE
                 // IT. A simulation somebody could mistake for a real connection is both
                 // a rejection reason and a lie. It says "not connected" in plain words
@@ -92,42 +108,36 @@ struct TerminalView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
+            // ⚠️ THE ORDER IS HIS, STATED CONTROL BY CONTROL, 2026-09-04: "the phone
+            // to the far left and the mic the speaker then the (i) far right", with the
+            // connection status "on the row below".
+            //
+            // It reads as one sentence left to right: how you get there, whether it can
+            // hear you, whether it can talk to you, how it is set up, what it is. The
+            // status came OUT of this row because a state is not an action — it sat among
+            // five buttons looking like a sixth, and it is the one thing here you never
+            // press.
             .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    Button { showingConnection = true } label: {
+                        // ⚠️ HIS PICK: "phone connection fill for connections cards."
+                        // A handset with signal arcs — a modem reaching out, which is
+                        // what this sheet sets up. It also stops this button and Settings
+                        // drawing the same sliders glyph, which he spotted the moment
+                        // both were on screen.
+                        Label("Connection", systemImage: "phone.connection.fill")
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button(isConnected ? "Disconnect" : "Connect") {
                         Task { await toggleConnection() }
                     }
                     .disabled(isBusy || connection.host.isEmpty || connection.username.isEmpty)
                 }
-                ToolbarItem(placement: .automatic) {
-                    Button { showingConnection = true } label: {
-                        // ⚠️ HIS PICK, 2026-09-04: "phone connection fill for
-                        // connections cards." A handset with signal arcs — a modem
-                        // reaching out, which is what this sheet sets up. It also stops
-                        // this button and Settings drawing the same sliders glyph, which
-                        // he spotted the moment both were on screen.
-                        Label("Connection", systemImage: "phone.connection.fill")
-                    }
-                }
-                ToolbarItem(placement: .automatic) {
-                    // ⚠️ ONE TAP, ALWAYS REACHABLE. Whether the room is quiet changes
-                    // minute to minute, and burying this in a settings sheet means it is
-                    // still talking while he is deciding where to find the switch.
-                    Button {
-                        spoken.isEnabled.toggle()
-                    } label: {
-                        Label("Speak output",
-                              systemImage: spoken.isEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
-                    }
-                    .tint(spoken.isEnabled ? .accentColor : .red)
-                }
-                // ⚠️ THE MICROPHONE SITS BESIDE THE SPEAKER. His words, 2026-09-04:
-                // "a mic is supposed to be next to the speaker."
-                //
-                // They are one pair — the two halves of talking to it — and separating
-                // them meant the answer to "is it listening?" was in a different place
-                // from the answer to "is it talking?", which are the same question asked
-                // twice. Same colours as the composer had: red muted, green live.
+                // ⚠️ THE MICROPHONE AND THE SPEAKER ARE A PAIR AND STAY ADJACENT.
+                // "a mic is supposed to be next to the speaker." They are the two halves
+                // of talking to it, and apart, "is it listening?" and "is it talking?"
+                // were answered in different places.
                 ToolbarItem(placement: .automatic) {
                     Button {
                         if dictation.isListening {
@@ -143,8 +153,17 @@ struct TerminalView: View {
                     }
                     .tint(dictation.isListening ? .green : .red)
                 }
-                ToolbarItem(placement: .navigation) {
-                    LinkLightView(light: light)
+                ToolbarItem(placement: .automatic) {
+                    // ⚠️ ONE TAP, ALWAYS REACHABLE. Whether the room is quiet changes
+                    // minute to minute, and burying this in a settings sheet means it is
+                    // still talking while he is deciding where to find the switch.
+                    Button {
+                        spoken.isEnabled.toggle()
+                    } label: {
+                        Label("Speak output",
+                              systemImage: spoken.isEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                    }
+                    .tint(spoken.isEnabled ? .accentColor : .red)
                 }
                 ToolbarItem(placement: .automatic) {
                     Button { showingSettings = true } label: {
