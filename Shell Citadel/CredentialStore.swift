@@ -24,7 +24,14 @@ import Security
 
 enum CredentialStore {
 
-    private static let service = "com.nightgard.Shell-Citadel.ssh"
+    /// ⚠️ MUST NOT BE THE OLD APP'S SERVICE. 2026-09-04.
+    ///
+    /// The rebuild was given its own bundle identifier so it installs ALONGSIDE the
+    /// previous Shell Citadel rather than replacing it — that older build is his only
+    /// working fallback and it lives on his iPad. Sharing a Keychain service string
+    /// would undo half of that separation: two apps writing each other's saved
+    /// passwords, and deleting one taking the other's credentials with it.
+    private static let service = "com.nightgard.ShellCitadel2.ssh"
 
     /// Keyed by the connection's OWN IDENTITY, not its address.
     ///
