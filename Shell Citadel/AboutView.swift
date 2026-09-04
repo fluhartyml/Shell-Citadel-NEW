@@ -20,11 +20,65 @@ struct AboutView: View {
     var body: some View {
         NavigationStack {
         List {
+            // ⚠️ THE BUILD NUMBER IS THE FIRST THING ON THIS SHEET AND IT IS LARGE.
+            //
+            // His words, 2026-09-04: "the build should be obvious and prominant."
+            //
+            // It had ended up below the fold behind ten licence rows, which is the exact
+            // failure this app was rebuilt to prevent \u{2014} the old app reported
+            // "1.0 (1)" for every build ever made, so a working iPad and three broken
+            // iPhones could not be told apart and a full day went into guessing at a
+            // difference the app could have simply stated.
+            //
+            // So it is not a row in a list of rows. It is the headline, in a face where a
+            // 1 and an l cannot be confused, at a size that can be read off the screen
+            // from a normal sitting distance and said out loud to someone who cannot see
+            // it. Selectable, because the other way to deliver it is to copy it.
             Section {
-                Text("Shell Citadel")
-                    .font(.title2.weight(.semibold))
-                Text("A terminal you talk to.")
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Shell Citadel")
+                        .font(.title2.weight(.semibold))
+                    Text("A terminal you talk to.")
+                        .foregroundStyle(.secondary)
+
+                    Text("\(Self.marketingVersion) (\(Self.buildNumber))")
+                        .font(.system(.largeTitle, design: .monospaced).weight(.semibold))
+                        .textSelection(.enabled)
+                        .padding(.top, 8)
+
+                    Text(BuildStamp.commit)
+                        .font(.system(.title3, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+
+                    Text(BuildStamp.built)
+                        .font(.system(.footnote, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 4)
+            } header: {
+                HStack {
+                    Text("Build")
+                    MoreInfo(
+                        title: "the build number",
+                        detail: BuildStamp.isStamped
+                        ? """
+                          The build number counts commits, so it only ever goes up.
+
+                          It is the same number Xcode and App Store Connect show, and it \
+                          points at the commit beside it.
+
+                          A "+" after the commit means this build carries changes that \
+                          were never committed.
+                          """
+                        : """
+                          This build was made before build numbering existed \u{2014} so \
+                          it is older than any build that names a commit here.
+                          """
+                    )
+                }
             }
 
             // ⚠️ THESE TWO SECTIONS ARE A LICENCE OBLIGATION, NOT A COURTESY.
@@ -72,43 +126,6 @@ struct AboutView: View {
                 }
             }
 
-            Section {
-                Group {
-                    LabeledContent("Version", value: Self.marketingVersion)
-                    LabeledContent("Build", value: Self.buildNumber)
-                    LabeledContent("Commit", value: BuildStamp.commit)
-                    LabeledContent("Built", value: BuildStamp.built)
-                }
-                // ⚠️ THE FACE GOES ON THE ROWS, NOT THE SECTION. Applied to the Section
-                // it also reaches the header and footer, so "Build" rendered in a
-                // typewriter face while every other header on the sheet did not. The
-                // VALUES want monospace \u{2014} they get read out loud a character at a
-                // time, and a commit hash in a proportional face is where 1 and l stop
-                // being distinguishable.
-                .font(.system(.footnote, design: .monospaced))
-                .textSelection(.enabled)
-            } header: {
-                HStack {
-                    Text("Build")
-                    MoreInfo(
-                        title: "the build number",
-                        detail: BuildStamp.isStamped
-                        ? """
-                          The build number counts commits, so it only ever goes up.
-
-                          It is the same number Xcode and App Store Connect show, and it \
-                          points at the commit beside it.
-
-                          A "+" after the commit means this build carries changes that \
-                          were never committed.
-                          """
-                        : """
-                          This build was made before build numbering existed \u{2014} so \
-                          it is older than any build that names a commit here.
-                          """
-                    )
-                }
-            }
 
             // ⚠️ STEP 0.3. This is the screen that answers "what is it doing right
             // now?" without anyone guessing. It is here from the first day rather
