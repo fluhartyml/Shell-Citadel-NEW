@@ -326,14 +326,28 @@ struct TerminalView: View {
             }
             .disabled(!isConnected || isBusy)
 
-            TextField(isConnected ? "Type a command" : "Not connected", text: $input)
+            // ⚠️ THE EMPTY BOX IS THE INSTRUCTION. "Not connected" states a problem and
+            // offers nothing; `ssh user@server.local` is the answer to it, sitting in the
+            // place you would type the answer. He noticed it was gone before he noticed
+            // the feature was — 2026-09-04: "in the typing bar where it says not
+            // connected you used to have ssh user@servername.local."
+            TextField(isConnected ? "Type a command" : "ssh user@server.local", text: $input)
                 .font(.system(.body, design: .monospaced))
                 .autocorrectionDisabled()
                 #if os(iOS)
                 .textInputAutocapitalization(.never)
                 #endif
                 .focused($composerFocused)
-                .disabled(!isConnected || isBusy)
+                // ⚠️ TYPABLE WHILE DISCONNECTED, AND THAT IS THE WHOLE POINT.
+                //
+                // This read `.disabled(!isConnected || isBusy)`, which made the ssh-line
+                // feature unreachable by construction: the box invites you to type
+                // `ssh user@server.local` and then refuses the keystrokes, because the
+                // only way to reach it is from the state where it is switched off.
+                //
+                // Only busy disables it now. A disconnected composer is exactly when he
+                // has something to say to it.
+                .disabled(isBusy)
                 .onSubmit { Task { await send() } }
                 // Recording the focus change is the whole of step 0.3 in one line: the
                 // question "who has the keyboard" now has an answer that is written
@@ -347,7 +361,9 @@ struct TerminalView: View {
             } label: {
                 Image(systemName: "arrow.up.circle.fill").font(.title2)
             }
-            .disabled(!isConnected || isBusy || input.trimmingCharacters(in: .whitespaces).isEmpty)
+            // Same reasoning as the field: the arrow has to work while disconnected,
+            // or the ssh line has no way to be submitted.
+            .disabled(isBusy || input.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding(10)
     }
@@ -464,6 +480,31 @@ struct TerminalView: View {
         composerFocused = true
     }
 
+    /// Pull `ssh [user@]host [-p port]` — or a bare `user@host` — out of a typed line.
+    ///
+    /// ⚠️ IT RETURNS nil RATHER THAN GUESSING. Anything that is not clearly one of those
+    /// two shapes is somebody's command, not a connection request, and taking it over
+    /// would be worse than ignoring it. A bare word with no `@` is not a host here, even
+    /// though `ssh myserver` is valid — because at this point in the app it is far more
+    /// likely to be a typo or a command than an intention to connect.
+    static func parseSSHLine(_ line: String) -> (user: String?, host: String, port: Int?)? {
+        var parts = line.split(separator: " ").map(String.init)
+        guard !parts.isEmpty else { return nil }
+        if parts[0].lowercased() == "ssh" { parts.removeFirst() }
+        guard !parts.isEmpty else { return nil }
+
+        var port: Int?
+        if let flag = parts.firstIndex(of: "-p"), parts.indices.contains(flag + 1) {
+            port = Int(parts[flag + 1])
+            parts.removeSubrange(flag...(flag + 1))
+        }
+
+        guard let target = parts.first, target.contains("@") else { return nil }
+        let halves = target.split(separator: "@", maxSplits: 1).map(String.init)
+        guard halves.count == 2, !halves[0].isEmpty, !halves[1].isEmpty else { return nil }
+        return (user: halves[0], host: halves[1], port: port)
+    }
+
     /// Play the script. Touches nothing but the transcript.
     ///
     /// ⚠️ IT KEEPS THE REAL TRANSCRIPT AND PUTS IT BACK. Somebody trying the demo out of
@@ -499,6 +540,33 @@ struct TerminalView: View {
         guard !command.isEmpty else { return }
         input = ""
         transcript.append(.init(kind: .command, text: "$ \(command)"))
+
+        // ⚠️ A TYPED ssh LINE IS A CONNECTION REQUEST, NOT A COMMAND. He typed
+        // `ssh account@host` the way he would in any terminal, and the old app answered
+        // with an empty Connections list — his report: "It didnt give me anywhere to put
+        // the password." So the line is parsed here and the sheet opens already filled,
+        // with the password the only thing left to type.
+        if !isConnected, let parsed = Self.parseSSHLine(command) {
+            connection.host = parsed.host
+            connection.username = parsed.user ?? connection.username
+            if let port = parsed.port { connection.port = port }
+            // A typed ssh line is always a plain shell — nothing in it names a session.
+            connection.mode = .shell
+            transcript.append(.init(kind: .status,
+                                    text: "Ready to connect to \(parsed.host). The password is the only thing missing."))
+            showingConnection = true
+            return
+        }
+
+        // ⚠️ AND ANYTHING ELSE TYPED WHILE DISCONNECTED GETS AN ANSWER, NOT SILENCE.
+        // Opening the composer up means ordinary commands can now be typed with nowhere
+        // to send them, and a command that simply disappears is the failure this app was
+        // rebuilt to stop making.
+        if !isConnected && !isDemo {
+            transcript.append(.init(kind: .status,
+                                    text: "Not connected, so that went nowhere. Type ssh user@server.local to connect, or open Connection settings."))
+            return
+        }
 
         // ⚠️ THE NETWORK GUARD. Rule 2 of DemoMode: nothing here may reach a socket.
         // It answers rather than staying silent, because silence during a demonstration
