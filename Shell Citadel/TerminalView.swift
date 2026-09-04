@@ -12,6 +12,10 @@
 //
 
 import SwiftUI
+import PhotosUI
+#if os(iOS)
+import VisionKit
+#endif
 
 struct TerminalView: View {
     @State private var store = ConnectionStore()
@@ -26,6 +30,13 @@ struct TerminalView: View {
     @State private var isBusy = false
     @State private var showingConnection = false
     @State private var showingAbout = false
+
+    // The "+" beside the composer. Michael, 2026-08-25: "I want to add a plus next ti
+    // the predictive text boxes to add a camera capture function" — "image or scan".
+    @State private var pickedItem: PhotosPickerItem?
+    @State private var showingPhotoPicker = false
+    @State private var showingCamera = false
+    @State private var showingScanner = false
 
     /// The composer's focus. The ONLY @FocusState in the app.
     @FocusState private var composerFocused: Bool
@@ -74,6 +85,50 @@ struct TerminalView: View {
                 }
             }
             .sheet(isPresented: $showingAbout) { AboutView() }
+            .photosPicker(isPresented: $showingPhotoPicker, selection: $pickedItem, matching: .images)
+            .onChange(of: pickedItem) { _, item in
+                guard let item else { return }
+                Task {
+                    defer { pickedItem = nil }
+                    guard let data = try? await item.loadTransferable(type: Data.self) else {
+                        transcript.append(.init(kind: .failure, text: "That picture could not be read."))
+                        return
+                    }
+                    #if os(iOS)
+                    guard let image = UIImage(data: data), let jpeg = PhotoSend.prepare(image) else {
+                        transcript.append(.init(kind: .failure, text: "That picture could not be prepared."))
+                        return
+                    }
+                    await sendImage(jpeg)
+                    #else
+                    await sendImage(data)
+                    #endif
+                }
+            }
+            #if os(iOS)
+            .fullScreenCover(isPresented: $showingCamera) {
+                CameraCapture(onCapture: { image in
+                    showingCamera = false
+                    guard let jpeg = PhotoSend.prepare(image) else { return }
+                    Task { await sendImage(jpeg) }
+                }, onCancel: { showingCamera = false })
+                .ignoresSafeArea()
+            }
+            .fullScreenCover(isPresented: $showingScanner) {
+                DocumentScanner(onScan: { pages in
+                    showingScanner = false
+                    Task {
+                        // In order, one at a time. A two-sided form sent as one page is
+                        // a form with half of it missing.
+                        for page in pages {
+                            guard let jpeg = PhotoSend.prepare(page) else { continue }
+                            await sendImage(jpeg)
+                        }
+                    }
+                }, onCancel: { showingScanner = false })
+                .ignoresSafeArea()
+            }
+            #endif
         }
         .onAppear(perform: restore)
     }
@@ -104,6 +159,37 @@ struct TerminalView: View {
 
     private var composer: some View {
         HStack(spacing: 8) {
+            // ⚠️ A MENU, NOT A BUTTON THAT GUESSES. A page and a cable want different
+            // capture paths — the document scanner hunts for edges a cable does not
+            // have — and choosing wrong wastes a photograph he had to get into position
+            // to take.
+            Menu {
+                Button {
+                    showingPhotoPicker = true
+                } label: {
+                    Label("Photo or screenshot", systemImage: "photo.on.rectangle")
+                }
+                #if os(iOS)
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button {
+                        showingCamera = true
+                    } label: {
+                        Label("Take a picture", systemImage: "camera")
+                    }
+                }
+                if VNDocumentCameraViewController.isSupported {
+                    Button {
+                        showingScanner = true
+                    } label: {
+                        Label("Scan a document", systemImage: "doc.viewfinder")
+                    }
+                }
+                #endif
+            } label: {
+                Image(systemName: "plus.circle.fill").font(.title2)
+            }
+            .disabled(!isConnected || isBusy)
+
             TextField(isConnected ? "Type a command" : "Not connected", text: $input)
                 .font(.system(.body, design: .monospaced))
                 .autocorrectionDisabled()
@@ -176,6 +262,25 @@ struct TerminalView: View {
             // turned one stale address into an hour of guessing on 2026-09-04.
             transcript.append(.init(kind: .failure, text: error.localizedDescription))
         }
+    }
+
+    /// Sends prepared image bytes to the Mac and says where they landed.
+    ///
+    /// ⚠️ SAYING THE PATH IS THE FEATURE, not politeness. Claude can then look at it
+    /// without being told where, and he can see that it arrived rather than trusting a
+    /// spinner that stopped.
+    private func sendImage(_ data: Data) async {
+        isBusy = true
+        defer { isBusy = false }
+        let name = PhotoSend.filename()
+        transcript.append(.init(kind: .status, text: "Sending \(name), \(data.count / 1024) KB"))
+        do {
+            let path = try await session.upload(data, named: name, toFolder: "Uploads")
+            transcript.append(.init(kind: .output, text: path))
+        } catch {
+            transcript.append(.init(kind: .failure, text: error.localizedDescription))
+        }
+        composerFocused = true
     }
 
     private func send() async {

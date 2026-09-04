@@ -154,6 +154,46 @@ actor SSHSession {
         return collected.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    // MARK: - Upload
+
+    /// Writes bytes to a folder in the far end's home directory and returns the path.
+    ///
+    /// ⚠️ CONTAINMENT, HIS RULE. Michael, 2026-08-27: "that way the pictures and videos
+    /// stay within shell citadel and dont leave its sandbox." These photographs are of
+    /// medical documents, the inside of his house, his equipment. Nothing is written to
+    /// the photo library — the moment an image lands there it syncs to iCloud and it has
+    /// left. The bytes exist in memory, go up this wire, and are dropped.
+    func upload(_ data: Data, named filename: String, toFolder folder: String) async throws -> String {
+        guard let client else { throw SSHError.notConnected }
+
+        // Make the folder first. `mkdir -p` is idempotent, so a second send costs
+        // nothing and a first send on a clean Mac does not fail.
+        _ = try await run("mkdir -p \(Self.shellQuoted(folder))")
+        let home = try await run("printf %s \"$HOME\"")
+        let directory = folder.hasPrefix("/") ? folder : "\(home)/\(folder)"
+        let remotePath = "\(directory)/\(filename)"
+
+        let sftp = try await client.openSFTP()
+        do {
+            var buffer = ByteBufferAllocator().buffer(capacity: data.count)
+            buffer.writeBytes(data)
+            try await sftp.withFile(filePath: remotePath,
+                                    flags: [.create, .write, .truncate]) { file in
+                try await file.write(buffer)
+            }
+            try await sftp.close()
+        } catch {
+            // Close even on failure. An SFTP channel left open survives as long as the
+            // connection does, and the connection is meant to last all day.
+            try? await sftp.close()
+            await MainActor.run { Diagnostics.shared.failed(.connection, "upload failed: \(error.localizedDescription)") }
+            throw error
+        }
+
+        await MainActor.run { Diagnostics.shared.record(.connection, "uploaded \(data.count) bytes to \(remotePath)") }
+        return remotePath
+    }
+
     /// Single-quote for the remote shell, escaping any quote inside.
     static func shellQuoted(_ s: String) -> String {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
