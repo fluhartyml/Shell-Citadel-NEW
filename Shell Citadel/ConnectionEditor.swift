@@ -7,6 +7,39 @@
 
 import SwiftUI
 
+/// A round ⓘ that opens a popover.
+///
+/// ⚠️ THIS REPLACES THE PARAGRAPHS THAT USED TO SIT UNDER EVERY SECTION. His words,
+/// 2026-09-04: "the hints are too much, they dont look normalized or within apples
+/// standards." He was right — Apple's own settings screens carry one short line under a
+/// section, or nothing at all, and the detail lives behind a control you can ignore.
+///
+/// The detail is not deleted, because every line of it was written down for a reason
+/// somebody paid for. It is moved somewhere it costs nothing to skip.
+private struct MoreInfo: View {
+    let title: String
+    let detail: String
+    @State private var showing = false
+
+    var body: some View {
+        Button {
+            showing = true
+        } label: {
+            Image(systemName: "info.circle")
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel("More about \(title)")
+        .popover(isPresented: $showing, arrowEdge: .bottom) {
+            Text(detail)
+                .font(.callout)
+                .multilineTextAlignment(.leading)
+                .padding()
+                .frame(maxWidth: 320)
+                .presentationCompactAdaptation(.popover)
+        }
+    }
+}
+
 struct ConnectionEditor: View {
     @Binding var connection: Connection
     @Binding var password: String
@@ -14,27 +47,53 @@ struct ConnectionEditor: View {
     /// What the Port field is currently showing. See the note at the Port field.
     @State private var portText = "22"
 
+    /// True once he has typed a name himself, which stops the address from filling it in.
+    ///
+    /// ⚠️ WITHOUT THIS, ITEM 8 EATS HIS TYPING. "Name suggests itself from the Address"
+    /// has to stop suggesting the moment there is a real answer, or every keystroke in
+    /// the Address field overwrites a name he chose on purpose.
+    @State private var nameIsHis = false
+
     var body: some View {
         Form {
+            // ─────────────────────────────────────────────────────────────────────
+            // SERVER NAME — items 5, 6, 7, 8, 9, 10
+            // ─────────────────────────────────────────────────────────────────────
             Section {
-                LabeledContent("Name") {
-                    TextField("My Mac", text: $connection.name)
-                        .multilineTextAlignment(.trailing)
-                }
-                LabeledContent("Address") {
-                    // ⚠️ A GENERIC EXAMPLE, NOT HIS MACHINE. This placeholder read
-                    // "his Mac's .local name" until he caught it on 2026-09-04:
-                    // "you used my physical name... it is my personal data in a
-                    // distribution app." He was right — a placeholder ships to every
-                    // user, so it must not name his hardware, his account or his house.
-                    TextField("my-computer.local", text: $connection.host)
-                        .multilineTextAlignment(.trailing)
-                        .autocorrectionDisabled()
-                        #if os(iOS)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.URL)
-                        #endif
-                }
+                // ⚠️ TextField(title:text:prompt:) — NOT LabeledContent WRAPPING ONE.
+                //
+                // This is the whole of fix-list item 2, "every field is doubled". The old
+                // form read:
+                //
+                //     LabeledContent("Name") { TextField("My Mac", text: $name) }
+                //
+                // On iOS that renders as one row: the label, and "My Mac" greyed inside
+                // the box. On macOS a TextField's title is drawn as its OWN attached
+                // label — so LabeledContent's label and the TextField's title both
+                // appear, and the row reads "Name  My Mac" followed by the empty box.
+                //
+                // The same mistake made the sheet too wide, which is item 1: two labels
+                // per row plus a trailing-aligned field is more content than the sheet
+                // was ever going to fit, and macOS clipped the ends off rather than wrap.
+                //
+                // `title` is the label on both platforms; `prompt` is the placeholder on
+                // both. One row, one label, one hint, nothing clipped.
+                TextField("Name", text: $connection.name, prompt: Text(suggestedName))
+                    .onChange(of: connection.name) { _, new in
+                        if !new.isEmpty { nameIsHis = true }
+                    }
+
+                TextField("Address", text: $connection.host, prompt: Text(addressPrompt))
+                    .autocorrectionDisabled()
+                    .onChange(of: connection.host) { _, _ in
+                        // Item 8 — the name follows the address until he names it himself.
+                        if !nameIsHis { connection.name = "" }
+                    }
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.URL)
+                    #endif
+
                 // ⚠️ PLAIN TEXT, NOT A FORMATTED VALUE.
                 //
                 // This was TextField(value:format:) in the old app. A formatter-bound
@@ -42,27 +101,41 @@ struct ConnectionEditor: View {
                 // leaves it momentarily empty — which is not a number — and the binding
                 // writes the old value straight back. From outside, the field simply
                 // refuses to change. Michael: "Port 22 doesnt let you tap it, it wont
-                // let you change from 22."
-                LabeledContent("Port") {
-                    TextField("22", text: $portText)
-                        .multilineTextAlignment(.trailing)
-                        #if os(iOS)
-                        .keyboardType(.numberPad)
-                        #endif
-                        .onAppear { portText = String(connection.port) }
-                        .onChange(of: portText) { _, new in
-                            let digits = new.filter(\.isNumber)
-                            if digits != new { portText = digits }
-                            if let n = Int(digits), (1...65535).contains(n) { connection.port = n }
-                        }
-                }
+                // let you change from 22." Item 10 records that it stays 22 and stays
+                // editable, so nobody "tidies" this back into a formatter later.
+                TextField("Port", text: $portText, prompt: Text("22"))
+                    #if os(iOS)
+                    .keyboardType(.numberPad)
+                    #endif
+                    .onAppear { portText = String(connection.port) }
+                    .onChange(of: portText) { _, new in
+                        let digits = new.filter(\.isNumber)
+                        if digits != new { portText = digits }
+                        if let n = Int(digits), (1...65535).contains(n) { connection.port = n }
+                    }
             } header: {
-                Text("The machine")
+                // Item 6 — "The machine" is gone.
+                HStack {
+                    Text("Server name")
+                    MoreInfo(
+                        title: "the address",
+                        detail: """
+                        A name ending in .local follows the machine, so it keeps working \
+                        when the address changes.
+
+                        Shell Citadel remembers the address that worked and falls back to \
+                        it if the name cannot be looked up.
+                        """
+                    )
+                }
             } footer: {
-                // Saying WHY a name is better than an address, because the reason is his.
-                Text("A name ending in .local follows the machine, so it keeps working when the address changes. Shell Citadel remembers the address that worked and falls back to it if the name cannot be looked up.")
+                // Item 4 — one short line. Item 5 — it does not say "Mac".
+                Text("Anything running an SSH server.")
             }
 
+            // ─────────────────────────────────────────────────────────────────────
+            // SIGN IN — items 11, 12, 13, 14, 15
+            // ─────────────────────────────────────────────────────────────────────
             Section {
                 // ⛔ DO NOT ADD .textContentType TO THESE TWO. 2026-09-04.
                 //
@@ -78,32 +151,70 @@ struct ConnectionEditor: View {
                 //
                 // The old app carried this from 2026-08-22 and it survived three
                 // rollbacks because every rollback point was newer than the cause.
-                LabeledContent("User name") {
-                    TextField("your account name", text: $connection.username)
-                        .multilineTextAlignment(.trailing)
-                        .autocorrectionDisabled()
-                        #if os(iOS)
-                        .textInputAutocapitalization(.never)
-                        #endif
-                }
-                LabeledContent("Password") {
-                    SecureField("required", text: $password)
-                        .multilineTextAlignment(.trailing)
-                }
+                TextField("Account", text: $connection.username, prompt: Text(accountPrompt))
+                    .autocorrectionDisabled()
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    #endif
+
+                SecureField("Password", text: $password, prompt: Text("Required"))
+
                 if connection.username.contains(" ") {
                     Label(
-                        "A user name cannot contain a space. SSH wants your short account name \u{2014} the one your home folder is named after.",
+                        "An account name cannot contain a space. SSH wants the short account name \u{2014} the one the home folder is named after.",
                         systemImage: "exclamationmark.triangle.fill"
                     )
                     .font(.footnote)
                     .foregroundStyle(.orange)
                 }
             } header: {
-                Text("Sign in")
+                HStack {
+                    Text("Sign in")
+                    // Item 13 and item 15, both behind the ⓘ rather than under the section.
+                    MoreInfo(
+                        title: "signing in",
+                        detail: """
+                        Account: lowercase letters, digits, hyphen, underscore and \
+                        period. No spaces, and it cannot start with a hyphen.
+
+                        Both are CASE SENSITIVE. The account is the short name, not the \
+                        full name shown on the login screen.
+
+                        The password is kept in this device's Keychain \u{2014} never in \
+                        iCloud, never in a backup.
+                        """
+                    )
+                }
             } footer: {
-                Text("The password is kept in this device's Keychain \u{2014} never in iCloud, never in a backup. On a Mac, turn on Remote Login in System Settings \u{203A} General \u{203A} Sharing.")
+                // ⚠️ THE ONE THING WORTH A LINE OF ITS OWN. Case sensitivity is what cost
+                // him an afternoon: `MichaelFluharty` versus `michaelfluharty` produced
+                // `allAuthenticationOptionsFailed`, which the app reported as "error 4".
+                Text("Both are case sensitive.")
             }
 
+            if let remembered = connection.lastKnownAddress {
+                Section {
+                    LabeledContent("Last reached at", value: remembered)
+                        .font(.system(.footnote, design: .monospaced))
+                } footer: {
+                    Text("Used if the name cannot be looked up.")
+                }
+            }
+
+            // ─────────────────────────────────────────────────────────────────────
+            // MODE — items 16, 17, 18, 19, 20. LAST ON THE SHEET, and it owns the
+            // settings that belong to it.
+            //
+            // His instruction, 2026-09-04: "the mode has direct and attach to session,
+            // under the direct tab relocate the starting folder to live there, and under
+            // the attach to session have the tag (user definable) toggle, session, and
+            // all the other stuff user definable."
+            //
+            // ⚠️ THE POINT IS NOT TIDINESS. Start in folder cannot exist in Attach mode
+            // at all — see Connection.startFolder — and a control that is meaningless in
+            // the mode you are in is a control you have to reason about and dismiss.
+            // Putting each mode's settings inside the mode makes that impossible.
+            // ─────────────────────────────────────────────────────────────────────
             Section {
                 Picker("Mode", selection: $connection.mode) {
                     ForEach(Connection.Mode.allCases, id: \.self) { mode in
@@ -112,43 +223,82 @@ struct ConnectionEditor: View {
                 }
                 .pickerStyle(.segmented)
 
-                if connection.mode == .tmux {
-                    LabeledContent("Session") {
-                        TextField("main", text: $connection.tmuxSession)
-                            .multilineTextAlignment(.trailing)
-                            .autocorrectionDisabled()
-                            #if os(iOS)
-                            .textInputAutocapitalization(.never)
-                            #endif
-                    }
-                    LabeledContent("Replies file") {
-                        TextField("~/session-output.txt", text: $connection.replyPath)
-                            .multilineTextAlignment(.trailing)
-                            .autocorrectionDisabled()
-                            #if os(iOS)
-                            .textInputAutocapitalization(.never)
-                            #endif
-                    }
+                switch connection.mode {
+                case .shell:
+                    // Item 18 — it was in the old app and had not been rebuilt.
+                    TextField("Start in folder",
+                              text: $connection.startFolder,
+                              prompt: Text("Wherever the login lands"))
+                        .autocorrectionDisabled()
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        #endif
+
+                case .tmux:
+                    TextField("Session", text: $connection.tmuxSession, prompt: Text("main"))
+                        .autocorrectionDisabled()
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        #endif
+
+                    TextField("Replies file", text: $connection.replyPath, prompt: Text("~/session-output.txt"))
+                        .autocorrectionDisabled()
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        #endif
+
+                    // Item 17 — kept, and reframed as the generic feature it is.
+                    Toggle("Timestamp each message", isOn: $connection.stampMessages)
                 }
             } header: {
-                Text("Mode")
-            } footer: {
-                // These are two different things, not one thing with a switch, and
-                // saying so here is cheaper than him discovering it.
-                Text(connection.mode == .tmux
-                     ? "What you type is handed to a program already running in a tmux session, and its replies are read from a file that program writes \u{2014} not from the terminal's output. Needs tmux on that machine."
-                     : "Type a command, the machine answers. Nothing else is running.")
-            }
+                HStack {
+                    Text("Mode")
+                    // Item 20 — the tmux paragraph goes behind the ⓘ.
+                    MoreInfo(
+                        title: "the two modes",
+                        detail: """
+                        Direct: type a command, the machine answers. Nothing else is \
+                        running.
 
-            if let remembered = connection.lastKnownAddress {
-                Section {
-                    LabeledContent("Last reached at", value: remembered)
-                        .font(.system(.footnote, design: .monospaced))
-                } footer: {
-                    Text("Used automatically if the name above cannot be looked up.")
+                        Attach to session: what you type is handed to a program already \
+                        running in a tmux session, and its replies are read from a file \
+                        that program writes \u{2014} not from the terminal's output. \
+                        Needs tmux on that machine.
+
+                        Timestamps are off in Direct always, because a stamp typed into a \
+                        shell is garbage on the command line.
+                        """
+                    )
                 }
             }
         }
+        // ⚠️ .grouped IS FIX-LIST ITEM 3. Without it macOS lays a Form out as a plain
+        // stack: the section headers render as ordinary text jammed against the footer
+        // above them, which is exactly what he described — "so the sheet reads as one
+        // wall". .grouped gives macOS the inset, boxed sections it draws in System
+        // Settings, where a header looks like a header because it is one.
+        .formStyle(.grouped)
         .navigationTitle("Connection")
+    }
+
+    // MARK: - Runtime suggestions  (items 9 and 12)
+
+    /// What to offer as the Address. The running machine's own name, where there is one.
+    private var addressPrompt: String {
+        LocalMachine.bonjourName ?? "server.local"
+    }
+
+    /// What to offer as the Account.
+    ///
+    /// ⚠️ EMPTY ON THE PHONE, NOT A GUESS. iOS has no short account name to offer, and a
+    /// plausible-looking wrong suggestion is worse than none — it is the kind of thing
+    /// somebody accepts without reading.
+    private var accountPrompt: String {
+        LocalMachine.accountName ?? "account"
+    }
+
+    /// What to offer as the Name — item 8, the name follows the address.
+    private var suggestedName: String {
+        connection.host.isEmpty ? "Server" : connection.host
     }
 }

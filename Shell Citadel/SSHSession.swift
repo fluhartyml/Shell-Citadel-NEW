@@ -81,7 +81,19 @@ actor SSHSession {
                 self.client = client
                 self.trust = trust
                 self.addressUsed = address
-                self.workingDirectory = ""
+                // ⚠️ ITEM 18 — "Start in folder" is seeded here and nowhere else.
+                //
+                // `runTrackingDirectory` already prefixes every command with a `cd` to
+                // whatever this holds, which is how `cd` sticks between commands. So the
+                // start folder is not a separate mechanism: it is the same one, given a
+                // starting value instead of an empty one.
+                //
+                // Direct mode only. In Attach mode the session already has a directory
+                // and the only way to move it would be typing a `cd` into the
+                // conversation, in front of whoever is reading it.
+                self.workingDirectory = connection.mode == .shell
+                    ? connection.startFolder.trimmingCharacters(in: .whitespaces)
+                    : ""
                 await MainActor.run {
                     Diagnostics.shared.connectionChanged("connected via \(address)")
                 }
@@ -204,7 +216,7 @@ actor SSHSession {
     /// The buffer name is deliberately odd so it can never clobber one he is using
     /// himself, and `-d` deletes it the moment it has been pasted. The Enter that submits
     /// stays a separate, deliberate key.
-    func sendToSession(_ text: String, session sessionName: String, tag: String) async throws {
+    func sendToSession(_ text: String, session sessionName: String, tag: String, stamped shouldStamp: Bool) async throws {
         guard client != nil else { throw SSHError.notConnected }
         let tmux = try await tmuxExecutable()
         let session = Self.shellQuoted(sessionName)
@@ -221,7 +233,12 @@ actor SSHSession {
         // and without a sent-time Claude cannot tell which are current and which were
         // overtaken minutes ago. The source tag matters for the same reason: more than
         // one app types into this session, and without it Claude cannot tell which.
-        let stamped = "[\(Self.sentStamp()) \(tag)] \(text)"
+        //
+        // ⚠️ ITEM 17 — IT IS A CHOICE NOW, AND OFF IS A REAL ANSWER. Attach mode means
+        // "hand my typing to a long-running program", and that program might be a build,
+        // a REPL or a game server that wants the bytes exactly as typed. A prefix it did
+        // not ask for is corruption, not metadata.
+        let stamped = shouldStamp ? "[\(Self.sentStamp()) \(tag)] \(text)" : text
         let body = Self.shellQuoted(stamped)
         let buffer = "shell-citadel-msg"
         _ = try await run("""

@@ -357,6 +357,24 @@
 //    (`who am i` from the phone) at the end of every chunk. If it fails, that is
 //    the work, whatever the roadmap says is next.
 //
+//
+//  ─────────────────────────────────────────────────────────────────────────────
+//  🗒️ PARKING LOT — his ideas, recorded so they do not evaporate
+//  ─────────────────────────────────────────────────────────────────────────────
+//  2026-09-04, during the Mode/tag-toggle discussion. Promised out loud and then
+//  not written down until the next wake-up caught it. Not scheduled, not scoped.
+//
+//  • A KNOWLEDGE BASE OF WHAT CLAUDE LEARNS IN A SESSION.
+//    His words: "if there is a claude memory in the works we should ask the human
+//    developer to keep a repository of skills claude has learned in tmux so we can
+//    build a knowledge base."
+//    Note the shape of it: the HUMAN DEVELOPER keeps the repository, not the app
+//    and not the assistant. That is the same principle the apartment already runs
+//    on — a lesson written down by the person who was there outlives the session
+//    that learned it.
+//    ⚠️ Out of scope for a terminal client on its own. It belongs to whatever is
+//    on the far end of Attach mode, not to Shell Citadel.
+//
 
 import Foundation
 

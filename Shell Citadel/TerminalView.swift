@@ -396,7 +396,7 @@ struct TerminalView: View {
         // there is no output to wait for here, and waiting would look like a hang.
         if connection.mode == .tmux {
             do {
-                try await session.sendToSession(command, session: connection.tmuxSession, tag: Self.sourceTag)
+                try await session.sendToSession(command, session: connection.tmuxSession, tag: Self.sourceTag, stamped: connection.stampMessages)
             } catch {
                 transcript.append(.init(kind: .failure, text: error.localizedDescription))
             }
