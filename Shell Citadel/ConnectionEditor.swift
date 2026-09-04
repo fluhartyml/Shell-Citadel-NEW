@@ -112,9 +112,9 @@ struct ConnectionEditor: View {
                 }
                 .pickerStyle(.segmented)
 
-                if connection.mode == .claude {
+                if connection.mode == .tmux {
                     LabeledContent("Session") {
-                        TextField("claude", text: $connection.tmuxSession)
+                        TextField("main", text: $connection.tmuxSession)
                             .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                             #if os(iOS)
@@ -135,8 +135,8 @@ struct ConnectionEditor: View {
             } footer: {
                 // These are two different things, not one thing with a switch, and
                 // saying so here is cheaper than him discovering it.
-                Text(connection.mode == .claude
-                     ? "What you type is handed to a running session, and what comes back is what Claude chose to say \u{2014} not the terminal's output. Needs tmux on that machine."
+                Text(connection.mode == .tmux
+                     ? "What you type is handed to a program already running in a tmux session, and its replies are read from a file that program writes \u{2014} not from the terminal's output. Needs tmux on that machine."
                      : "Type a command, the machine answers. Nothing else is running.")
             }
 

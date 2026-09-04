@@ -24,7 +24,7 @@ enum SSHError: LocalizedError {
         case .notConnected:
             "Not connected."
         case .tmuxNotFound:
-            "tmux is not installed on that machine, and Claude mode needs it. Terminal mode does not \u{2014} switch modes in the connection settings, or install tmux there."
+            "tmux is not installed on that machine, and tmux mode needs it. Terminal mode does not \u{2014} switch modes in the connection settings, or install tmux there."
         case .noSuchSession(let name):
             "No tmux session named \(name) is running there. Run tmux ls on that machine to see which sessions exist."
         case .cannotResolve(let name):

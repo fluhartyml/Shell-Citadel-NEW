@@ -46,25 +46,36 @@ struct Connection: Codable, Identifiable, Equatable, Sendable {
     /// Which mode this connection runs in.
     ///
     /// ⚠️ THE TWO ARE NOT THE SAME APP WITH A SETTING. `.shell` is a terminal: you type
-    /// a command, the Mac answers. `.claude` is a CONVERSATION: what you type is handed
-    /// into a running session, and what comes back is what Claude chose to SAY.
+    /// a command, the machine answers. `.tmux` hands what you type to a program already
+    /// running in a tmux session, and reads its replies from a file that program writes.
+    /// ⚠️ CALLED "tmux", NOT "Claude". His correction, 2026-09-04: "all users have tmux
+    /// but not claude running in tmux."
+    ///
+    /// I had argued for "Claude" from his own rule that a label should name the
+    /// CONSEQUENCE rather than the mechanism. That rule assumes the consequence is shared
+    /// by whoever reads the label — and here it is not. "tmux" is a consequence for every
+    /// user; "Claude" is a consequence for exactly one.
     enum Mode: String, Codable, CaseIterable, Sendable {
         case shell
-        case claude
+        case tmux
 
         var title: String {
             switch self {
             case .shell: "Terminal"
-            case .claude: "Claude"
+            case .tmux: "tmux"
             }
         }
     }
 
     var mode: Mode = .shell
 
-    /// The tmux session to hand messages to. Neutral by default — a stranger's first run
-    /// should not arrive pre-filled with someone else's session name.
-    var tmuxSession = "claude"
+    /// The tmux session to hand messages to.
+    ///
+    /// ⚠️ `main` IS THE DEFAULT BECAUSE IT IS TMUX'S OWN. This read `claude` until he
+    /// caught it, 2026-09-04: "all users have tmux but not claude running in tmux."
+    /// A default is a recommendation to every user who reads it, and one that names his
+    /// particular workflow is a recommendation nobody else can act on.
+    var tmuxSession = "main"
 
     /// A file the far end appends plain sentences to, read as the reply channel.
     ///

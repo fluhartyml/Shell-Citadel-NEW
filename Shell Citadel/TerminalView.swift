@@ -352,7 +352,7 @@ struct TerminalView: View {
             }
             transcript.append(.init(kind: .status, text: "Connected."))
             composerFocused = true
-            if connection.mode == .claude { startFollowingReplies() }
+            if connection.mode == .tmux { startFollowingReplies() }
         } catch {
             // Say the real reason. "Could not reach the server" for every cause is what
             // turned one stale address into an hour of guessing on 2026-09-04.
@@ -389,7 +389,7 @@ struct TerminalView: View {
         // ⚠️ TWO DIFFERENT THINGS, NOT ONE WITH A FLAG. In Claude mode the message is
         // HANDED to a running session and the answer arrives later on its own channel;
         // there is no output to wait for here, and waiting would look like a hang.
-        if connection.mode == .claude {
+        if connection.mode == .tmux {
             do {
                 try await session.sendToSession(command, session: connection.tmuxSession, tag: Self.sourceTag)
             } catch {
