@@ -202,8 +202,23 @@
 //     SSH, runs commands, prints real output, `cd` sticks, settings persist.
 //     Done in the old app in nine commits, 2026-08-22. Verified by running
 //     `who am i` and `ls` from the phone — that is the bar for "done" here too.
-//     ⚠️ Assume the Mac's ADDRESS is wrong before assuming the app is: it moved
-//        192.168.1.38 -> .63 overnight on 2026-09-04 and broke every connection.
+//     🔒 LOCKED 2026-09-04 — ADDRESS BY NAME, WITH A REMEMBERED IP BEHIND IT.
+//        Asked whether the Mac should get a fixed address. His answer: "sounds like an
+//        engineering issue, i would as a layman say use michaels-macbook-air.local."
+//        ⭐ HE IS RIGHT, and the layman answer is the better engineering one: a Bonjour
+//        name follows the machine, so the address moving stops mattering at all. Nothing
+//        has to be configured on his router and nothing has to be remembered by him.
+//
+//        BUT THE NAME ALONE IS NOT ENOUGH, AND TODAY PROVED IT. .local is resolved by
+//        mDNS, which does not work over cellular and can be swallowed by a VPN profile
+//        that captures DNS. On 2026-09-04 the name failed and the app said "could not
+//        reach the server" — the same sentence it says for every other cause.
+//
+//        SO: connect by NAME first, and if the name does not resolve, fall back to the
+//        LAST ADDRESS THAT WORKED, which the app records every time it connects. Two
+//        independent paths, no configuration, and the failure of one is invisible to him.
+//        ⚠️ AND SAY WHICH ONE IT USED. "Could not reach" that cannot distinguish a DNS
+//           failure from a dead host is what made this cost an hour.
 //
 //  2  ⬜ OPEN — IT LOOKS LIKE YOURS.
 //     🔒 LOCKED: his icon, light + dark, NEVER tinted.
