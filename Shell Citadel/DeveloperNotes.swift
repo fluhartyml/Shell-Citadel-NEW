@@ -118,7 +118,7 @@
 //    when this app is broken, that one still reaches Claude.
 //  • Answer, offer, stop. He gets overwhelmed by long replies and has said he
 //    would stop using Claude over it. Say the answer, offer more, then wait.
-//  • This Mac's LAN address moves (192.168.1.38 -> .63 overnight, 2026-09-04) and
+//  • This Mac's LAN address moves (one address -> .63 overnight, 2026-09-04) and
 //    every saved connection broke. Assume the address is wrong before assuming the
 //    app is.
 //
@@ -243,7 +243,7 @@
 //     `who am i` and `ls` from the phone — that is the bar for "done" here too.
 //     🔒 LOCKED 2026-09-04 — ADDRESS BY NAME, WITH A REMEMBERED IP BEHIND IT.
 //        Asked whether the Mac should get a fixed address. His answer: "sounds like an
-//        engineering issue, i would as a layman say use michaels-macbook-air.local."
+//        engineering issue, i would as a layman say use his Mac's .local name."
 //        ⭐ HE IS RIGHT, and the layman answer is the better engineering one: a Bonjour
 //        name follows the machine, so the address moving stops mattering at all. Nothing
 //        has to be configured on his router and nothing has to be remembered by him.

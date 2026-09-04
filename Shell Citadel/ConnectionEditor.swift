@@ -22,7 +22,12 @@ struct ConnectionEditor: View {
                         .multilineTextAlignment(.trailing)
                 }
                 LabeledContent("Address") {
-                    TextField("michaels-macbook-air.local", text: $connection.host)
+                    // ⚠️ A GENERIC EXAMPLE, NOT HIS MACHINE. This placeholder read
+                    // "his Mac's .local name" until he caught it on 2026-09-04:
+                    // "you used my physical name... it is my personal data in a
+                    // distribution app." He was right — a placeholder ships to every
+                    // user, so it must not name his hardware, his account or his house.
+                    TextField("my-computer.local", text: $connection.host)
                         .multilineTextAlignment(.trailing)
                         .autocorrectionDisabled()
                         #if os(iOS)
@@ -55,7 +60,7 @@ struct ConnectionEditor: View {
                 Text("The machine")
             } footer: {
                 // Saying WHY a name is better than an address, because the reason is his.
-                Text("A name like michaels-macbook-air.local follows the machine, so it keeps working when the address changes. Shell Citadel remembers the address that worked and falls back to it if the name cannot be looked up.")
+                Text("A name ending in .local follows the machine, so it keeps working when the address changes. Shell Citadel remembers the address that worked and falls back to it if the name cannot be looked up.")
             }
 
             Section {

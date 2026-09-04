@@ -18,12 +18,12 @@ struct Connection: Codable, Identifiable, Equatable, Sendable {
     ///
     /// Michael, 2026-09-04, asked whether his Mac should get a fixed IP:
     /// "sounds like an engineering issue, i would as a layman say use
-    ///  michaels-macbook-air.local."
+    ///  his Mac's .local name."
     ///
     /// He is right, and the layman answer is the better engineering one. A Bonjour
     /// name follows the machine, so the address changing stops mattering — nothing to
     /// configure on his router and nothing for him to remember. On 2026-09-04 his
-    /// Mac moved from 192.168.1.38 to .63 overnight and every saved connection broke;
+    /// Mac moved from one address to .63 overnight and every saved connection broke;
     /// a name would have survived that untouched.
     var host = ""
 
