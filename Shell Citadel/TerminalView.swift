@@ -118,6 +118,14 @@ struct TerminalView: View {
             // five buttons looking like a sixth, and it is the one thing here you never
             // press.
             .toolbar {
+                // ⚠️ SLIDERS FIRST, THEN THE PHONE. His correction, 2026-09-04: "no
+                // the slider then the phone to the far left." Settings is the outer
+                // container and the connection sits inside it, so the wider thing leads.
+                ToolbarItem(placement: .navigation) {
+                    Button { showingSettings = true } label: {
+                        Label("Settings", systemImage: "slider.horizontal.3")
+                    }
+                }
                 ToolbarItem(placement: .navigation) {
                     Button { showingConnection = true } label: {
                         // ⚠️ HIS PICK: "phone connection fill for connections cards."
@@ -164,11 +172,6 @@ struct TerminalView: View {
                               systemImage: spoken.isEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
                     }
                     .tint(spoken.isEnabled ? .accentColor : .red)
-                }
-                ToolbarItem(placement: .automatic) {
-                    Button { showingSettings = true } label: {
-                        Label("Settings", systemImage: "slider.horizontal.3")
-                    }
                 }
                 ToolbarItem(placement: .automatic) {
                     Button { showingAbout = true } label: {
