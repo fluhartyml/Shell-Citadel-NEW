@@ -39,6 +39,21 @@
 //  🔒 LOCKED — PLATFORMS. Multiplatform: a Mac app and an iOS app. His words: "I want to have
 //  this a Mac app and an iOS app."
 //
+//  🔒 LOCKED — WHAT THE MAC APP IS FOR. Asked 2026-09-04, because macOS already has
+//  Terminal and a second Terminal is not worth building. His answer:
+//      "the mac app is the same as the iphone app but on the mac. it brings the
+//       tabbed terminals and hands free use to a terminal"
+//
+//  ⭐ READ THAT AGAIN: HANDS FREE IS THE REASON THE MAC APP EXISTS.
+//  Terminal.app has tabs. Terminal.app does not let him talk to it and hear it back.
+//  So the Mac build is not a port with the phone's features trimmed off — the speech
+//  half is the whole point of it, and anything that treats speech as the mobile
+//  convenience has the product backwards on both platforms.
+//
+//  Consequence for the architecture: the terminal, the tabs, the speech in and the
+//  speech out are all SHARED, and only the shells around them differ. Build them
+//  platform-neutral from the first commit rather than lifting an iOS version later.
+//
 //  🔒 LOCKED — BUILD NUMBER. CURRENT_PROJECT_VERSION = `git rev-list --count HEAD`, written by
 //  a post-commit hook, and SHOWN IN THE APP with the commit beside it.
 //  This is not a preference. The old app reported "1.0 (1)" for every build ever
