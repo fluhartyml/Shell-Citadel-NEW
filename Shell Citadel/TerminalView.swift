@@ -32,6 +32,7 @@ struct TerminalView: View {
     @State private var isBusy = false
     @State private var showingConnection = false
     @State private var showingAbout = false
+    @State private var showingSettings = false
     @State private var replyTask: Task<Void, Never>?
     @State private var replyOffset = 0
 
@@ -115,6 +116,11 @@ struct TerminalView: View {
                     .tint(spoken.isEnabled ? .accentColor : .red)
                 }
                 ToolbarItem(placement: .automatic) {
+                    Button { showingSettings = true } label: {
+                        Label("Settings", systemImage: "slider.horizontal.3")
+                    }
+                }
+                ToolbarItem(placement: .automatic) {
                     Button { showingAbout = true } label: {
                         Label("About", systemImage: "info.circle")
                     }
@@ -139,6 +145,7 @@ struct TerminalView: View {
                         }
                 }
             }
+            .sheet(isPresented: $showingSettings) { SettingsView() }
             .sheet(isPresented: $showingAbout) {
                 AboutView(onStartDemo: startDemo)
             }
@@ -285,9 +292,28 @@ struct TerminalView: View {
                     dictation.start()
                 }
             } label: {
+                // ⚠️ HIS COLOURS, AND THEY ARE THE OPPOSITE OF WHAT WAS HERE.
+                //
+                // 2026-09-04: "add the red mute mic and green [wiggling] while noise is
+                // present mic glyphs."
+                //
+                // This drew RED while listening, which is backwards from every other
+                // control he owns — red is the state you want to leave, not the state
+                // that is working. Muted is red. Live is green.
+                //
+                // ⚠️ AND GREEN ALONE IS NOT ENOUGH, WHICH IS THE POINT OF THE MOVEMENT.
+                // A green mic says the app THINKS it is listening. It says nothing about
+                // whether the microphone is actually picking anything up — and that gap
+                // is exactly where his afternoon went: his voice was not reaching it and
+                // nothing on screen distinguished "listening to silence" from "listening
+                // to you". `Dictation.level` is a real measurement of the room, so a
+                // glyph that moves with it answers the question the colour cannot.
                 Image(systemName: dictation.isListening ? "mic.fill" : "mic.slash")
                     .font(.title2)
-                    .foregroundStyle(dictation.isListening ? .red : .secondary)
+                    .foregroundStyle(dictation.isListening ? .green : .red)
+                    .scaleEffect(dictation.isListening ? 1.0 + CGFloat(dictation.level) * 0.45 : 1.0)
+                    .animation(.easeOut(duration: 0.12), value: dictation.level)
+                    .accessibilityLabel(dictation.isListening ? "Microphone on" : "Microphone muted")
             }
             .disabled(!isConnected || isBusy)
 
