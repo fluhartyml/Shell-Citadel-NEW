@@ -21,6 +21,7 @@ struct TerminalView: View {
     @State private var store = ConnectionStore()
     @State private var session = SSHSession()
     @State private var diagnostics = Diagnostics.shared
+    @State private var spoken = SpokenOutput.shared
 
     @State private var connection = Connection()
     @State private var password = ""
@@ -63,6 +64,18 @@ struct TerminalView: View {
                     Button { showingConnection = true } label: {
                         Label("Connection", systemImage: "slider.horizontal.3")
                     }
+                }
+                ToolbarItem(placement: .automatic) {
+                    // ⚠️ ONE TAP, ALWAYS REACHABLE. Whether the room is quiet changes
+                    // minute to minute, and burying this in a settings sheet means it is
+                    // still talking while he is deciding where to find the switch.
+                    Button {
+                        spoken.isEnabled.toggle()
+                    } label: {
+                        Label("Speak output",
+                              systemImage: spoken.isEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                    }
+                    .tint(spoken.isEnabled ? .accentColor : .red)
                 }
                 ToolbarItem(placement: .automatic) {
                     Button { showingAbout = true } label: {
@@ -292,7 +305,12 @@ struct TerminalView: View {
         defer { isBusy = false }
         do {
             let output = try await session.runTrackingDirectory(command)
-            if !output.isEmpty { transcript.append(.init(kind: .output, text: output)) }
+            if !output.isEmpty {
+                transcript.append(.init(kind: .output, text: output))
+                // Step 3: new output speaks itself the moment it lands, so the loop
+                // closes without him having to ask for each half of it.
+                spoken.speak(output)
+            }
         } catch {
             transcript.append(.init(kind: .failure, text: error.localizedDescription))
             await session.markDisconnected()
