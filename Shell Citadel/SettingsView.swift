@@ -51,20 +51,49 @@ enum HexColor {
     ///
     /// The hue is kept and only brightness moves, so it stays the colour he picked rather
     /// than becoming a different one.
-    static func shades(_ hex: String) -> (yours: Color, theirs: Color) {
-        #if os(macOS)
-        let base = NSColor(color(hex)).usingColorSpace(.deviceRGB) ?? .green
+    /// ⚠️ THE RULE IS "MINE POPS", NOT "MINE IS LIGHTER" — his correction, 2026-09-05.
+    ///
+    /// He first stated it as *"whatever color i choose my color is dark and yours is
+    /// lighter."* Then he found light mode and said what he had actually meant:
+    /// *"the reason was because on a black background lighter color pops out."*
+    ///
+    /// **Lighter was never the rule. Contrast was.** On black, lighter pops; on white,
+    /// lighter is the one thing that cannot be read. The old derivation only ever knew
+    /// how to go up, so light mode drew his text at 28% grey and mine at 80% grey on
+    /// white — nearly invisible, which is what he noticed.
+    ///
+    /// So the direction now follows the background: **his stays near the colour he
+    /// picked, and mine moves AWAY from the background**, whichever way that is.
+    static func shades(_ hex: String, on background: String) -> (yours: Color, theirs: Color) {
+        let (h, sat, b) = hsb(hex)
+        let (_, _, bgBrightness) = hsb(background)
+        let backgroundIsDark = bgBrightness < 0.5
+
+        // His: the colour he chose, floored and capped only enough to stay legible.
+        let yoursBrightness = backgroundIsDark
+            ? max(0.34, b * 0.75)          // never so dark it vanishes into black
+            : min(0.62, max(b, 0.22))      // never so light it vanishes into white
+
+        // Mine: the same hue, moved away from the background so it stands out.
+        let theirsBrightness = backgroundIsDark
+            ? min(0.97, max(b, 0.55) * 1.45)
+            : max(0.10, min(b, 0.34) * 0.55)
+
+        let yours = Color(hue: h, saturation: sat, brightness: yoursBrightness)
+        let theirs = Color(hue: h, saturation: sat * 0.9, brightness: theirsBrightness)
+        return (yours, theirs)
+    }
+
+    /// Hue, saturation and brightness of a stored hex colour, on either platform.
+    private static func hsb(_ hex: String) -> (CGFloat, CGFloat, CGFloat) {
         var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        #if os(macOS)
+        let base = NSColor(color(hex)).usingColorSpace(.deviceRGB) ?? .black
         base.getHue(&h, saturation: &sat, brightness: &b, alpha: &a)
         #else
-        var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         UIColor(color(hex)).getHue(&h, saturation: &sat, brightness: &b, alpha: &a)
         #endif
-        // ⚠️ FLOORED AND CAPPED. A very dark pick would otherwise make "his" unreadable,
-        // and a very light one would make "theirs" white on white.
-        let yours = Color(hue: h, saturation: sat, brightness: max(0.28, b * 0.62))
-        let theirs = Color(hue: h, saturation: max(0.0, sat * 0.82), brightness: min(0.97, max(b, 0.55) * 1.45))
-        return (yours, theirs)
+        return (h, sat, b)
     }
 
     static func color(_ hex: String) -> Color {
@@ -365,7 +394,8 @@ struct SettingsView: View {
                     // asking of these colours is whether the two are distinguishable from
                     // each other — which a single line of text cannot answer.
                     VStack(alignment: .leading, spacing: 3) {
-                        let pair = HexColor.shades(tab == .light ? settings.lightYou : settings.darkYou)
+                        let pair = HexColor.shades(tab == .light ? settings.lightYou : settings.darkYou,
+                                                   on: tab == .light ? settings.lightBackground : settings.darkBackground)
                         Text("$ who am i").foregroundStyle(pair.yours)
                         Text("michaelfluharty  ttys004").foregroundStyle(pair.theirs)
                     }

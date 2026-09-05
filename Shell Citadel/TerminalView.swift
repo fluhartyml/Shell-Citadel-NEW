@@ -96,7 +96,8 @@ struct TerminalView: View {
 
     private func colour(for kind: TranscriptLine.Kind) -> Color {
         let dark = effectiveScheme == .dark
-        let pair = HexColor.shades(dark ? settings.darkYou : settings.lightYou)
+        let pair = HexColor.shades(dark ? settings.darkYou : settings.lightYou,
+                                   on: dark ? settings.darkBackground : settings.lightBackground)
         switch kind {
         case .command: return pair.yours
         case .output:  return pair.theirs
