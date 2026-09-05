@@ -138,9 +138,24 @@ struct SettingsView: View {
                     Stepper(value: $settings.columns, in: 20...300, step: 1) {
                         LabeledContent("Columns") { Text("\(settings.columns)").monospacedDigit() }
                     }
+                    // ⚠️ DISABLED AND SAYS WHY, RATHER THAN PRETENDING.
+                    //
+                    // A line count needs a character grid to count lines of, and this
+                    // transcript is a flowing list — it will mean something when the real
+                    // PTY lands (fix list 31) and not before. He caught it doing nothing:
+                    // "the lines and colums dont appear to work."
+                    //
+                    // Greyed out with a reason beats a stepper that moves a number nothing
+                    // reads. The first teaches; the second is the false green this whole
+                    // rebuild exists to stop producing.
                     Stepper(value: $settings.lines, in: 5...200, step: 1) {
                         LabeledContent("Lines") { Text("\(settings.lines)").monospacedDigit() }
                     }
+                    .disabled(true)
+                    Text("Lines waits on the real terminal grid \u{2014} there is nothing yet for it to count.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     // ⚠️ A SLIDER HERE, A STEPPER FOR THE PAUSE, AND THE DIFFERENCE IS
                     // REAL. Type size is judged by looking at it, so dragging while
                     // watching is the right gesture. The sending pause is judged by

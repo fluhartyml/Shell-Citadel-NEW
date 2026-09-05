@@ -443,6 +443,15 @@ struct TerminalView: View {
                 }
                 .padding(.horizontal)
                 .padding(.top, 8)
+                // ⚠️ COLUMNS NOW MEAN SOMETHING. They were a stepper wired to nothing —
+                // "the lines and colums dont appear to work" — because this transcript is
+                // a flowing list, not a character grid, so there was no grid to size.
+                //
+                // What a column count HONESTLY means here is where the text wraps, which
+                // is the thing a person actually sees when they change it. A monospaced
+                // character is about 0.6 of its point size wide, so N columns is that
+                // times N. On a narrow phone the screen still wins.
+                .frame(maxWidth: CGFloat(settings.columns) * settings.fontSize * 0.6, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(HexColor.color(scheme == .dark ? settings.darkBackground : settings.lightBackground))
@@ -504,7 +513,10 @@ struct TerminalView: View {
                           // becomes a puzzle — the part it cuts is the part that says
                           // .local, which is the whole point of the suggestion.
                           .font(.system(.callout, design: .monospaced)))
-                .font(.system(.body, design: .monospaced))
+                // ⚠️ THE COMPOSER TAKES HIS FONT TOO. It did not, which is most of why
+                // "the font sizes dont change" — the size was applied to transcript lines
+                // only, so on a screen with little output there was nothing to see change.
+                .font(terminalFont)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .autocorrectionDisabled()

@@ -234,7 +234,7 @@ struct ConnectionEditor: View {
                 Picker("Voice", selection: $connection.voiceIdentifier) {
                     Text("System default").tag(String?.none)
                     ForEach(SpokenOutput.availableVoices, id: \.identifier) { voice in
-                        Text(voice.name).tag(String?.some(voice.identifier))
+                        Text(SpokenOutput.label(for: voice)).tag(String?.some(voice.identifier))
                     }
                 }
                 // ⚠️ IT SAYS HELLO THE MOMENT YOU PICK ONE. His idea: a list of names is
@@ -242,6 +242,13 @@ struct ConnectionEditor: View {
                 // apart from another room. Hearing it is the only way to judge that.
                 .onChange(of: connection.voiceIdentifier) { _, chosen in
                     SpokenOutput.shared.preview(voiceIdentifier: chosen)
+                }
+
+                if let problem = SpokenOutput.shared.lastProblem {
+                    Label(problem, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             } header: {
                 HStack {

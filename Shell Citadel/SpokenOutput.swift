@@ -54,6 +54,9 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
 
     private(set) var isSpeaking = false
 
+    /// Set when a chosen voice could not be used, so the interface can say why.
+    private(set) var lastProblem: String?
+
     /// Every voice installed for English, for the per-connection picker.
     ///
     /// ⚠️ READ FROM THE DEVICE, NEVER A HARDCODED LIST. What is installed differs by
@@ -63,7 +66,33 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
     static var availableVoices: [AVSpeechSynthesisVoice] {
         AVSpeechSynthesisVoice.speechVoices()
             .filter { $0.language.hasPrefix("en") }
-            .sorted { $0.name < $1.name }
+            // ⚠️ ONLY VOICES THAT CAN ACTUALLY BE REBUILT FROM THEIR IDENTIFIER.
+            //
+            // `speechVoices()` lists voices the device knows ABOUT, which is not the same
+            // as voices it can speak WITH — an undownloaded one is listed and then
+            // returns nil from `AVSpeechSynthesisVoice(identifier:)`. Offering it means
+            // he picks a name and the system voice comes out, which is exactly what he
+            // hit: "i chose author and albert plays", then "now system is playing".
+            //
+            // A list that contains choices the app cannot honour is worse than a short
+            // list. All 52 reconstruct on this Mac; his phone plainly has some that do
+            // not, which is why the fault appeared there and not here.
+            .filter { AVSpeechSynthesisVoice(identifier: $0.identifier) != nil }
+            .sorted { ($0.name, $0.language) < ($1.name, $1.language) }
+    }
+
+    /// What to show in the picker.
+    ///
+    /// ⚠️ THE NAME ALONE IS NOT ENOUGH. Thirteen English names appear TWICE on this
+    /// machine — Daniel, Samantha, Reed, Grandma and the rest — differing only by
+    /// language or quality. A list with two identical rows cannot be chosen from, and the
+    /// one he picks is a coin toss he did not know he was making.
+    static func label(for voice: AVSpeechSynthesisVoice) -> String {
+        var parts = [voice.name]
+        parts.append(voice.language)
+        if voice.quality == .premium { parts.append("Premium") }
+        else if voice.quality == .enhanced { parts.append("Enhanced") }
+        return parts.joined(separator: " \u{00B7} ")
     }
 
     private let synthesizer = AVSpeechSynthesizer()
@@ -126,8 +155,16 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
     func preview(voiceIdentifier: String?) {
         synthesizer.stopSpeaking(at: .immediate)
         let utterance = AVSpeechUtterance(string: "Hello.")
-        if let voiceIdentifier, let voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier) {
+        if let voiceIdentifier {
+            guard let voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier) else {
+                // ⚠️ SAY SO RATHER THAN PLAYING SOMETHING ELSE. Falling back to the system
+                // voice here is what made the picker look broken instead of unavailable.
+                Diagnostics.shared.failed(.app, "voice unavailable: \(voiceIdentifier)")
+                lastProblem = "That voice is not installed on this device. It can be added in Settings \u{203A} Accessibility \u{203A} Spoken Content \u{203A} Voices."
+                return
+            }
             utterance.voice = voice
+            lastProblem = nil
         }
         // The microphone still has to go deaf first, or the sample lands back in the
         // composer as something he said.
