@@ -590,7 +590,7 @@ struct TerminalView: View {
                     // Speaking it is the point of the mode: he is not looking at the
                     // screen, which is why the reply channel is sentences and not a
                     // terminal stream in the first place.
-                    spoken.speak(chunk.text)
+                    spoken.speak(chunk.text, voice: connection.voiceIdentifier)
                 }
             } catch {
                 if !Task.isCancelled {
@@ -685,6 +685,7 @@ struct TerminalView: View {
             // nothing ever read, which is the same false green as a settings screen that
             // changes nothing. The voice is the tab's identity when he is listening from
             // another room; a stored identity nobody uses is not an identity.
+            // The fallback, for anything spoken outside a tab's own output.
             spoken.voiceIdentifier = connection.voiceIdentifier
             light.start(pinging: session)
             composerFocused = true
@@ -880,7 +881,7 @@ struct TerminalView: View {
                 transcript.append(.init(kind: .output, text: output))
                 // Step 3: new output speaks itself the moment it lands, so the loop
                 // closes without him having to ask for each half of it.
-                spoken.speak(output)
+                spoken.speak(output, voice: connection.voiceIdentifier)
             }
         } catch {
             transcript.append(.init(kind: .failure, text: error.localizedDescription))

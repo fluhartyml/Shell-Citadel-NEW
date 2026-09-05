@@ -113,6 +113,9 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
     /// ⚠️ SET FROM THE CONNECTION, NOT CHOSEN HERE. This object never picks a voice on
     /// its own — nil means AVSpeechSynthesizer uses the system voice, which is the one
     /// he set in his own OS settings and the one he has twice told me not to override.
+    /// ⚠️ THE FALLBACK ONLY. The voice that matters travels WITH each utterance — see
+    /// `speak(_:voice:)`. This is one object shared by every tab, so a voice parked here
+    /// is the last connection's voice, spoken on behalf of all of them.
     var voiceIdentifier: String?
 
     /// Say one short line in a given voice, so a name in a list becomes a sound.
@@ -177,7 +180,21 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer.speak(utterance)
     }
 
-    func speak(_ text: String) {
+    /// Say a line in a particular connection's voice.
+    ///
+    /// ⚠️ THE VOICE IS AN ARGUMENT BECAUSE THERE IS ONE SPEAKER AND SEVERAL TABS.
+    ///
+    /// It was a property, set when a tab connected. With one terminal that was the same
+    /// thing; with tabs it is a bug — the last connection to be made silently became the
+    /// voice of every other one. And the entire reason he wanted a voice per connection
+    /// is to know which machine is talking while he is in another room, so a shared voice
+    /// does not merely lose a preference, it removes the feature.
+    func speak(_ text: String, voice: String? = nil) {
+        let chosen = voice ?? voiceIdentifier
+        speakInternal(text, voiceIdentifier: chosen)
+    }
+
+    private func speakInternal(_ text: String, voiceIdentifier: String?) {
         guard isEnabled else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
