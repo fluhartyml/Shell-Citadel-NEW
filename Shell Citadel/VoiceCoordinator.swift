@@ -26,10 +26,25 @@
 //  listening BEFORE the first word, not after the last one, because "after" is exactly
 //  the window in which it hears itself.
 //
-//  ── WHAT IT DELIBERATELY DOES NOT DO ──────────────────────────────────────────────
-//  It does not resume listening automatically when speech ends. Whether the microphone
-//  comes back on is the user's state, not the synthesiser's, and quietly re-arming a
-//  microphone is the kind of thing that should never be inferred.
+//  ── WHAT IT PUTS BACK, AND WHAT IT STILL WILL NOT ─────────────────────────────────
+//  ⚠️ THIS SECTION USED TO SAY IT NEVER RESUMES LISTENING, and that sentence caused a
+//  bug he found on 2026-09-05: "i press the mic to unmute it, it says listening, then
+//  toggles mute back on."
+//
+//  The sequence was: he taps unmute → the mic opens → the app announces "Listening" →
+//  `willSpeak()` closes the mic for the announcement → speech ends → nothing reopens it.
+//  **The preamble killed the thing it was announcing**, every time, and the icon flipping
+//  back to muted was the app correctly reporting a mic it had closed itself.
+//
+//  The distinction that was missing: WHO closed it.
+//
+//    • The USER muted → it stays muted. Unchanged, and still the rule. Re-arming a
+//      microphone the user turned off is exactly the thing that must never be inferred.
+//    • THIS FILE closed it to speak → this file opens it again. That is not inferring a
+//      preference; it is returning something it borrowed a second ago without asking.
+//
+//  It reopens after a short grace rather than instantly, because the moment right after
+//  the last word is precisely when the room still carries it — see the two loops above.
 //
 
 import Foundation
@@ -50,8 +65,26 @@ final class VoiceCoordinator {
     private(set) var owner: Owner = .idle
 
     /// Set by whoever turns the microphone on, so the coordinator can put it back the
-    /// way the user had it rather than guessing. Nil means nothing wants the mic.
+    /// way the user had it rather than guessing. False means nothing wants the mic.
     private var listenerWantsMic = false
+
+    /// True only when THIS file closed the microphone in order to speak.
+    ///
+    /// ⚠️ THE WHOLE FIX HANGS ON THIS ONE BOOLEAN. Without it, a mic the app closed and
+    /// a mic the user closed are indistinguishable, and the safe-looking choice — leave
+    /// it off — silently cancels an unmute he just made.
+    private var silencedForSpeech = false
+
+    /// How long to wait after the last word before opening the microphone again.
+    ///
+    /// ⚠️ NOT ZERO, AND THAT IS THE POINT. The instant after speech ends is exactly when
+    /// the room, the AirPods, or a speakerphone still carries it — which is how the app
+    /// heard itself twice and sent its own words back as his. Long enough for the tail to
+    /// die, short enough that he is not talking into a mic that is not open yet.
+    private let graceAfterSpeech: Duration = .milliseconds(600)
+
+    /// Cancels a pending reopen if something changes its mind in the meantime.
+    private var reopenTask: Task<Void, Never>?
 
     private var stopListening: (() -> Void)?
     private var startListening: (() -> Void)?
@@ -69,12 +102,15 @@ final class VoiceCoordinator {
 
     /// Call BEFORE the first word is spoken, never after.
     func willSpeak() {
+        // A reopen from a previous utterance must not fire in the middle of this one.
+        reopenTask?.cancel()
+        reopenTask = nil
+
         if owner == .listening {
-            // Remember that the user had the mic on, so nothing is lost — but do not
-            // re-arm it automatically. See the note at the top.
             listenerWantsMic = true
+            silencedForSpeech = true
             stopListening?()
-            Diagnostics.shared.record(.mic, "silenced for speech")
+            Diagnostics.shared.record(.mic, "silenced for speech — will reopen after")
         }
         owner = .speaking
         Diagnostics.shared.speechChanged(speaking: true)
@@ -83,8 +119,28 @@ final class VoiceCoordinator {
     func didFinishSpeaking() {
         owner = .idle
         Diagnostics.shared.speechChanged(speaking: false)
-        if listenerWantsMic {
-            Diagnostics.shared.record(.mic, "was on before speech; left off deliberately")
+
+        // ⚠️ ONLY WHAT THIS FILE CLOSED. If the user muted at any point — including
+        // while the app was speaking — `didStopListening` has already cleared this, and
+        // the microphone stays off.
+        guard silencedForSpeech, listenerWantsMic else { return }
+        silencedForSpeech = false
+
+        reopenTask = Task { [weak self] in
+            try? await Task.sleep(for: self?.graceAfterSpeech ?? .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self else { return }
+                // Re-checked after the wait rather than before it: he may have muted, or
+                // something else may have started speaking, during those 600ms.
+                guard self.listenerWantsMic, self.owner == .idle else {
+                    Diagnostics.shared.record(.mic, "reopen skipped — state changed during the grace")
+                    return
+                }
+                self.owner = .listening
+                self.startListening?()
+                Diagnostics.shared.record(.mic, "reopened after speech")
+            }
         }
     }
 
@@ -96,9 +152,15 @@ final class VoiceCoordinator {
         Diagnostics.shared.micChanged(listening: true)
     }
 
+    /// The user turned the microphone off. That outranks anything this file intended.
     func didStopListening() {
         if owner == .listening { owner = .idle }
         listenerWantsMic = false
+        // ⚠️ CANCELS A PENDING REOPEN. Muting during the app's own announcement must not
+        // be undone 600ms later by a task that was scheduled before he decided.
+        silencedForSpeech = false
+        reopenTask?.cancel()
+        reopenTask = nil
         Diagnostics.shared.micChanged(listening: false)
     }
 
