@@ -625,6 +625,22 @@ struct TerminalView: View {
             if await session.trustedOnFirstUse {
                 transcript.append(.init(kind: .status, text: "First time connecting to this machine \u{2014} its key has been recorded."))
             }
+            // ⚠️ THE PASSWORD IS SAVED HERE, ON SUCCESS, AND IT WAS SAVED NOWHERE ELSE.
+            //
+            // `CredentialStore.save` was called in exactly one place — the editor's Done
+            // button — so a connection made by typing an ssh line and a password never
+            // stored it. It worked once and then failed forever: tapping that card again
+            // read nil from the Keychain, sent an EMPTY password, and got back
+            // "SSHClientError 4", which looks identical to a wrong password.
+            //
+            // He found it: "looks like it didnt save the password maybe?" — from nothing
+            // but the shape of the failure.
+            //
+            // ⚠️ ON SUCCESS, NOT ON THE ATTEMPT. Saving a password that was just rejected
+            // would make every later tap retry the wrong one silently, and he would have
+            // no way to tell that from the account being wrong. A password is only worth
+            // keeping once the far end has agreed with it.
+            _ = CredentialStore.save(password: password, for: connection)
             transcript.append(.init(kind: .status, text: "Connected."))
             // ⚠️ HAND THE CONNECTION'S VOICE TO THE SPEAKER. Without this line the
             // picker on the connection sheet was a dead control — it stored a choice
@@ -642,7 +658,7 @@ struct TerminalView: View {
             // ⚠️ AND SAY WHERE TO GO AND LOOK. The saved connection is only useful for
             // proofreading if he knows it was kept.
             transcript.append(.init(kind: .status,
-                                    text: "The connection was saved as typed \u{2014} open Connection settings to check it for a typo."))
+                                    text: "The connection was saved as typed \u{2014} open Connection settings to check it for a typo. The password was not saved, since it was not accepted."))
             light.markDown()
         }
     }
