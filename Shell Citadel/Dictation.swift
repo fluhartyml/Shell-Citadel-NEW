@@ -85,7 +85,13 @@ final class Dictation: ObservableObject {
         didSet { SyncedSettings.shared.pauseSeconds = pauseSeconds }
     }
 
-    private enum Key { static let pause = "dictationPauseSeconds" }
+    private enum Key {
+        static let pause = "dictationPauseSeconds"
+        /// ⚠️ PER DEVICE, NOT SYNCED. Whether he has heard the explanation on THIS phone
+        /// is a fact about this phone. Syncing it would mean a new device stayed silent
+        /// because an older one had already been told.
+        static let heardPreamble = "dictation.heardPreamble"
+    }
 
     private let audioEngine = AVAudioEngine()
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
@@ -267,7 +273,21 @@ final class Dictation: ObservableObject {
 
         isListening = true
         AudioServicesPlaySystemSound(1113)   // the system "begin recording" tone
-        notice("Listening. Say something and it will send after a \(String(format: "%.1f", pauseSeconds))-second pause.")
+
+        // ⚠️ THE FULL SENTENCE ONCE, THEN JUST THE TONE. His description, 2026-09-04:
+        // "for the first unmute it used to say talk normally and pause, after pausing
+        // for {time} it will automatically send."
+        //
+        // It is the contract of the whole feature and it cannot be guessed from a
+        // microphone icon — but hearing it on every unmute would be a lecture. So: said
+        // in full the first time on this device, and after that the tone alone carries
+        // it, because by then he knows what the tone means.
+        if UserDefaults.standard.bool(forKey: Key.heardPreamble) {
+            notice("Listening.")
+        } else {
+            notice("Listening. Talk normally and pause \u{2014} after \(String(format: "%.1f", pauseSeconds)) seconds of silence it sends by itself.")
+            UserDefaults.standard.set(true, forKey: Key.heardPreamble)
+        }
     }
 
     func stop() {

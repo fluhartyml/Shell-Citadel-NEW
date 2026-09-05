@@ -97,6 +97,32 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
     /// IS asking to hear it; refusing because the speaker toggle is off would leave the
     /// control silent at the one moment it is being used on purpose. It does not touch
     /// `isEnabled`, so the mute is exactly where he left it afterwards.
+    /// Say something the APP is telling him, rather than something the far end said.
+    ///
+    /// ⚠️ IT IGNORES THE OUTPUT MUTE, LIKE `preview` DOES, AND FOR THE SAME REASON. The
+    /// speaker toggle means "do not read the machine's output to me". "Listening" is not
+    /// the machine's output — it is the app confirming an action he just took, at the one
+    /// moment his eyes are not on the screen. Muting the far end must not mute the app's
+    /// own acknowledgement.
+    func announce(_ sentence: String) {
+        let utterance = AVSpeechUtterance(string: sentence)
+        if let voiceIdentifier, let voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier) {
+            utterance.voice = voice
+        }
+        // ⚠️ THROUGH THE COORDINATOR, OR THIS IS THE ECHO BUG. "Listening" is announced
+        // at the exact instant the microphone goes live, so without this the app says a
+        // sentence directly into its own open mic and sends it back as something he
+        // said. `willSpeak` stops the listener and remembers to restart it afterwards,
+        // which is the half-duplex rule the whole audio design rests on.
+        VoiceCoordinator.shared.willSpeak()
+        #if os(iOS)
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+        try? AVAudioSession.sharedInstance().setActive(true)
+        #endif
+        isSpeaking = true
+        synthesizer.speak(utterance)
+    }
+
     func preview(voiceIdentifier: String?) {
         synthesizer.stopSpeaking(at: .immediate)
         let utterance = AVSpeechUtterance(string: "Hello.")

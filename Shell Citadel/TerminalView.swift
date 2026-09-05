@@ -310,6 +310,21 @@ struct TerminalView: View {
             // connection stays up, and only the file tailing and the heartbeat stop.
             // Coming back resumes from the byte offset the reply channel already keeps,
             // so the gap fills in order and nothing written while he was away is lost.
+            // ⚠️ SOMEBODY HAS TO DELIVER WHAT DICTATION SAYS. `notice()` set a property
+            // and called `onNotice`, and NOTHING in the app read either — so the sentence
+            // explaining how hands-free works was being written and dropped on every
+            // unmute. He noticed its absence: "the unmute of the mic doesnt do that
+            // preamble thing."
+            //
+            // It goes to both places on purpose. Spoken, because his hands and eyes are
+            // busy — that is the whole reason the microphone is on. Written, because
+            // audio is gone the moment it is said and a transcript can be scrolled back.
+            .onAppear {
+                dictation.onNotice = { sentence in
+                    transcript.append(.init(kind: .status, text: sentence))
+                    SpokenOutput.shared.announce(sentence)
+                }
+            }
             .onChange(of: tab.isFrontmost) { _, front in
                 if front {
                     if isConnected {
