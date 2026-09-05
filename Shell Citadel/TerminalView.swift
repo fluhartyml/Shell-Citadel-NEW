@@ -487,9 +487,11 @@ struct TerminalView: View {
                     // action the app performs — take a picture, scan a document — so a
                     // noun sitting among them gets read as one too.
                     //
-                    // "Photo roll" is where it looks, which is the only thing this item
-                    // does differently from the others.
-                    Label("Photo roll", systemImage: "photo.on.rectangle")
+                    // "Photos" is where it looks, and it is Apple's own user-facing word
+                    // \u{2014} the API is PHPhotoLibrary, but Settings \u{203A} Privacy
+                    // calls it Photos, and matching the system is worth more than a name
+                    // I preferred. His call: "photos".
+                    Label("Photos", systemImage: "photo.on.rectangle")
                 }
                 #if os(iOS)
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
