@@ -212,12 +212,35 @@ struct Connection: Codable, Identifiable, Equatable, Sendable {
         // as a flag.
         while copy.username.hasPrefix("-") { copy.username.removeFirst() }
 
-        // Lowercased, and reduced to what is legal in a host name: letters, digits,
-        // hyphen and dot. Anything else was a typo, a stray quote, or a keyboard being
-        // clever, and none of those resolve.
-        copy.host = host
-            .lowercased()
-            .filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "." }
+        // ⚠️ A SPACE BECOMES A HYPHEN. IT IS NOT DELETED, AND THAT IS THE WHOLE FIX.
+        //
+        // 2026-09-04: he typed `Michael's MacBook Air.local` and I produced
+        // `michaelsmacbookair.local`, which is what he predicted and is also a name that
+        // does not exist. macOS BUILDS a .local name by turning each space into a
+        // hyphen — his Mac is `michaels-macbook-air.local` — so deleting the spaces
+        // makes a plausible-looking address that can never resolve. His call once he saw
+        // it: "it should auto correct that."
+        //
+        // This is not a guess about what he meant. It reproduces the rule the system
+        // itself used when it named the machine, which is why it lands on the real name
+        // rather than a nearby one.
+        //
+        // Order matters: strip the apostrophe first so "Michael's" closes up to
+        // "michaels", THEN map the spaces, or "michael s macbook" would gain a hyphen
+        // where a letter was removed.
+        var h = host.lowercased()
+        h = h.filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "." || $0.isWhitespace }
+        h = h.split(whereSeparator: { $0.isWhitespace }).joined(separator: "-")
+        // A double hyphen only ever comes from two spaces or a space beside a hyphen he
+        // already typed; neither is a name anyone has.
+        while h.contains("--") { h = h.replacingOccurrences(of: "--", with: "-") }
+        // A hyphen beside a dot came from a space beside the dot — "My NAS .local" —
+        // and no label in a host name begins or ends with one.
+        while h.contains("-.") { h = h.replacingOccurrences(of: "-.", with: ".") }
+        while h.contains(".-") { h = h.replacingOccurrences(of: ".-", with: ".") }
+        while h.hasPrefix("-") || h.hasPrefix(".") { h.removeFirst() }
+        while h.hasSuffix("-") || h.hasSuffix(".") { h.removeLast() }
+        copy.host = h
 
         copy.name = name.trimmingCharacters(in: .whitespaces)
         copy.tmuxSession = tmuxSession.filter { !$0.isWhitespace }
