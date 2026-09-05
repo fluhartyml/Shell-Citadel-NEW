@@ -25,7 +25,8 @@ struct TerminalView: View {
     /// tab switch. Only the label and the light travel outwards.
     var tab: TerminalTab = TerminalTab()
 
-    @State private var store = ConnectionStore()
+    /// One store for the app — see ConnectionStore.shared for why tabs made this necessary.
+    private var store = ConnectionStore.shared
     @State private var session = SSHSession()
     @State private var diagnostics = Diagnostics.shared
     @State private var spoken = SpokenOutput.shared
