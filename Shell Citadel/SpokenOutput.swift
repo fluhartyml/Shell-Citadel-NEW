@@ -302,6 +302,16 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                                        didFinish utterance: AVSpeechUtterance) {
         Task { @MainActor in
+            // ⚠️ ONLY WHEN THE WHOLE QUEUE IS DONE — the second echo loop, 2026-09-05.
+            //
+            // A reply is spoken as SEVERAL utterances in a row. This delegate fires after
+            // each one, so telling the coordinator "finished" here reopened the microphone
+            // BETWEEN sentences, and it heard the next sentence and sent it back as his.
+            // He watched his own transcript fill with my words tagged HF.
+            //
+            // `synthesizer.isSpeaking` is still true while anything remains queued, which
+            // is exactly the question that needed asking.
+            guard !synthesizer.isSpeaking else { return }
             isSpeaking = false
             VoiceCoordinator.shared.didFinishSpeaking()
             #if os(iOS)
