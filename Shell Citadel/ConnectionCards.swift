@@ -23,6 +23,9 @@ struct ConnectionCards: View {
     let connections: [Connection]
     let onPick: (Connection) -> Void
     let onNew: () -> Void
+    /// nil where editing does not belong — the start page just opens things.
+    var onEdit: ((Connection) -> Void)? = nil
+    var onDelete: ((Connection) -> Void)? = nil
 
     private let columns = [GridItem(.adaptive(minimum: 210), spacing: 12)]
 
@@ -39,6 +42,19 @@ struct ConnectionCards: View {
                             card(connection)
                         }
                         .buttonStyle(.plain)
+                        // ⚠️ EDIT AND DELETE LIVE IN A CONTEXT MENU, NOT ON THE CARD.
+                        // A card is something you press to go somewhere; putting a
+                        // delete control on its face means every trip to a connection
+                        // passes a button that destroys it. Long press is the ordinary
+                        // place for "something other than the obvious thing".
+                        .contextMenu {
+                            if let onEdit {
+                                Button("Edit\u{2026}") { onEdit(connection) }
+                            }
+                            if let onDelete {
+                                Button("Delete", role: .destructive) { onDelete(connection) }
+                            }
+                        }
                     }
                 }
                 .padding()

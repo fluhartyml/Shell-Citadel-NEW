@@ -38,6 +38,7 @@ struct TerminalView: View {
     @State private var isConnected = false
     @State private var isBusy = false
     @State private var showingConnection = false
+    @State private var showingEditor = false
     @State private var showingAbout = false
     @State private var showingSettings = false
     @State private var light = LinkLight()
@@ -166,7 +167,20 @@ struct TerminalView: View {
                             password = CredentialStore.password(for: picked) ?? ""
                             Task { await toggleConnection() }
                         },
-                        onNew: { showingConnection = true })
+                        // ⚠️ STRAIGHT TO THE EDITOR, NOT TO THE LIST. This button only
+                        // exists when the list is empty, so sending him to it would be
+                        // sending him somewhere with nothing on it.
+                        onNew: {
+                            connection = Connection()
+                            password = ""
+                            showingEditor = true
+                        },
+                        onEdit: { picked in
+                            connection = picked
+                            password = CredentialStore.password(for: picked) ?? ""
+                            showingEditor = true
+                        },
+                        onDelete: { store.remove(id: $0.id) })
                 } else {
                     transcriptView
                 }
@@ -243,6 +257,26 @@ struct TerminalView: View {
                 }
             }
             .sheet(isPresented: $showingConnection) {
+                ConnectionSheet(
+                    store: store,
+                    isConnected: isConnected,
+                    onPick: { picked in
+                        connection = picked
+                        password = CredentialStore.password(for: picked) ?? ""
+                        Task { await toggleConnection() }
+                    },
+                    onEdit: { picked in
+                        connection = picked
+                        password = CredentialStore.password(for: picked) ?? ""
+                        showingEditor = true
+                    },
+                    onNew: {
+                        connection = Connection()
+                        password = ""
+                        showingEditor = true
+                    })
+            }
+            .sheet(isPresented: $showingEditor) {
                 NavigationStack {
                     ConnectionEditor(connection: $connection, password: $password)
                         // Same reason as About: a Mac sheet sizes to its content and a
@@ -255,7 +289,7 @@ struct TerminalView: View {
                                 Button("Done") {
                                     store.save(connection)
                                     _ = CredentialStore.save(password: password, for: connection)
-                                    showingConnection = false
+                                    showingEditor = false
                                 }
                             }
                         }
