@@ -142,17 +142,12 @@ struct ConnectionEditor: View {
                     MoreInfo(
                         title: "signing in",
                         detail: """
-                        Account: letters, digits, hyphen, underscore and period. No \
-                        spaces, and it cannot start with a hyphen.
+                        Account: no spaces, and nothing the far end treats as an \
+                        illegal character. Use the short account name, not the full name \
+                        shown on a login screen.
 
-                        Use the short account name, not the full name shown on a login \
-                        screen. On a Mac its capitals do not matter; on Linux they do, \
-                        so what you type is kept exactly.
-
-                        The PASSWORD is always case sensitive.
-
-                        It is kept in this device's Keychain \u{2014} never in iCloud, \
-                        never in a backup.
+                        The password is case sensitive, and is kept in this device's \
+                        Keychain \u{2014} never in iCloud, never in a backup.
                         """
                     )
                 }

@@ -186,22 +186,25 @@ struct Connection: Codable, Identifiable, Equatable, Sendable {
     func normalised() -> Connection {
         var copy = self
 
-        // ⚠️ CASE PRESERVED. EVERYTHING UNIX CANNOT ACCEPT REMOVED.
+        // ⚠️ CASE PRESERVED. WHAT CANNOT BE PART OF A NAME REMOVED.
         //
         // His rule, 2026-09-04: "i want the autosave not to allow typos it knows 100%
-        // are typos (like errant spaces or illegal charaters as per unix)."
+        // are typos (like errant spaces or illegal charaters as per unix)" — and, when I
+        // started listing the legal set in the interface: "you dont even have to say what
+        // characters are illigal unless you know for a fact."
         //
-        // The bar is his: 100% certain. A unix account name lives in a colon-delimited
-        // line in /etc/passwd, so a colon is structurally impossible; a slash would make
-        // it a path; whitespace and control characters cannot appear at all; and the
-        // rest of what is stripped here are shell metacharacters that no account name
-        // has ever legitimately contained. Removing those is not a guess about intent —
-        // there is no intent they could serve.
+        // He is right to distrust the list. The legal set differs between macOS, Linux,
+        // the BSDs and whatever firmware a NAS is running, and I was stating one of them
+        // as though it were universal. What IS universal is narrower and is all this
+        // relies on: an account name lives in a colon-delimited line, so a colon cannot
+        // be in it; a slash would make it a path; whitespace and control characters
+        // cannot appear at all. Everything else stripped here is a shell metacharacter,
+        // which no name has ever legitimately contained.
         //
-        // ⚠️ WHAT IS NOT STRIPPED MATTERS AS MUCH. Capitals stay, because the account is
-        // case sensitive and some systems really do have them. Dots, hyphens and
-        // underscores stay, because they are legal and common. This tidies what cannot
-        // be right; it never improves what merely looks unusual.
+        // ⚠️ WHAT IS NOT STRIPPED MATTERS AS MUCH. Capitals stay — macOS ignores them
+        // and Linux does not, so keeping what he typed is right on both. Dots, hyphens
+        // and underscores stay. This removes what cannot be right; it never improves what
+        // merely looks unusual.
         copy.username = username
             .filter { $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" || $0 == "_" }
 
