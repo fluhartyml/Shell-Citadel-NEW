@@ -653,14 +653,23 @@ struct TerminalView: View {
             composerFocused = true
             if connection.mode == .tmux { startFollowingReplies() }
         } catch {
-            // Say the real reason. "Could not reach the server" for every cause is what
-            // turned one stale address into an hour of guessing on 2026-09-04.
-            transcript.append(.init(kind: .failure, text: error.localizedDescription))
-            // ⚠️ AND SAY WHERE TO GO AND LOOK. The saved connection is only useful for
-            // proofreading if he knows it was kept.
-            transcript.append(.init(kind: .status,
-                                    text: "The connection was saved as typed \u{2014} open Connection settings to check it for a typo. The password was not saved, since it was not accepted."))
+            // ⚠️ A SENTENCE, NOT THE LIBRARY'S ERROR NAME. See Diagnosis.swift — "error 4"
+            // stood for three different faults today and never said which.
+            let reading = Diagnosis.read(error, connection: connection, hasPassword: !password.isEmpty)
+            transcript.append(.init(kind: .failure, text: reading.sentence))
             light.markDown()
+
+            // ⚠️ ASK FOR THE PASSWORD RATHER THAN REPORTING ITS ABSENCE. A connection that
+            // synced from another device arrives complete except for its password, because
+            // the Keychain does not travel — so the first attempt on a new device ALWAYS
+            // fails this way, and telling him about it and stopping would make the sync
+            // look broken when it worked.
+            if reading.isAuthFailure && password.isEmpty {
+                showingPassword = true
+            } else {
+                transcript.append(.init(kind: .status,
+                                        text: "The connection was saved as typed \u{2014} open Connection settings to check it."))
+            }
         }
     }
 
