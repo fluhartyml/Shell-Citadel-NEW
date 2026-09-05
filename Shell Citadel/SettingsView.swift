@@ -28,6 +28,8 @@
 //
 
 import SwiftUI
+// Only to ask a font whether it is monospaced, on both platforms, in one code path.
+import CoreText
 
 /// Hex in, Color out, and back again.
 ///
@@ -379,24 +381,48 @@ extension SettingsView {
     /// offer it is to show what is actually installed rather than name fonts that might
     /// not be there. It also means nothing has to be bundled, so no font licence ships
     /// with the app.
+    ///
+    /// ⚠️ ASKS THE FONT, RATHER THAN READING ITS NAME. Until 2026-09-05 both branches
+    /// matched names containing "mono", "code", "courier" or "menlo" — a guess that
+    /// missed the one font this feature exists for. **His terminal runs MesloLGM Nerd
+    /// Font, and "meslo" is not "menlo"**: one letter, and the font he asked for by name
+    /// could not appear in the list at all.
+    ///
+    /// The macOS branch also had a precedence bug. `traits ?? 0 & 0x1 != 0` parses as
+    /// `(traits ?? 0) != 0`, not as a test of the monospace bit — so it accepted any face
+    /// carrying any trait whatsoever, and the name checks were doing the real filtering.
+    ///
+    /// CoreText answers this properly on both platforms: `kCTFontTraitMonoSpace` is the
+    /// font's own declaration about itself.
     static var monospacedFonts: [String] {
+        let families: [String]
         #if os(macOS)
-        NSFontManager.shared.availableFontFamilies
-            .filter { family in
-                guard let members = NSFontManager.shared.availableMembers(ofFontFamily: family) else { return false }
-                return members.contains { ($0[3] as? NSNumber)?.uintValue ?? 0 & 0x00000001 != 0 }
-                    || family.lowercased().contains("mono")
-                    || family.lowercased().contains("code")
-                    || family.lowercased().contains("courier")
-                    || family.lowercased().contains("menlo")
-            }
-            .sorted()
+        families = NSFontManager.shared.availableFontFamilies
         #else
-        UIFont.familyNames.filter {
-            let n = $0.lowercased()
-            return n.contains("mono") || n.contains("code") || n.contains("courier") || n.contains("menlo")
-        }.sorted()
+        families = UIFont.familyNames
         #endif
+        return families.filter(isMonospaced).sorted()
+    }
+
+    /// True when any face in the family declares the monospace trait.
+    ///
+    /// A family is offered if ANY member is monospaced, because that is what the picker
+    /// then draws with — and a family whose regular face is monospaced is the whole
+    /// point even when some exotic member of it is not.
+    private static func isMonospaced(_ family: String) -> Bool {
+        let descriptor = CTFontDescriptorCreateWithAttributes(
+            [kCTFontFamilyNameAttribute: family as CFString] as CFDictionary
+        )
+        guard let matches = CTFontDescriptorCreateMatchingFontDescriptors(descriptor, nil)
+                as? [CTFontDescriptor], !matches.isEmpty else { return false }
+
+        return matches.contains { candidate in
+            guard let traits = CTFontDescriptorCopyAttribute(candidate, kCTFontTraitsAttribute)
+                    as? [CFString: Any],
+                  let symbolic = traits[kCTFontSymbolicTrait] as? UInt32
+            else { return false }
+            return symbolic & CTFontSymbolicTraits.traitMonoSpace.rawValue != 0
+        }
     }
 }
 
