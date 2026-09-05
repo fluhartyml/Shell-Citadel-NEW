@@ -55,7 +55,8 @@ struct TerminalView: View {
 
     // The "+" beside the composer. Michael, 2026-08-25: "I want to add a plus next ti
     // the predictive text boxes to add a camera capture function" — "image or scan".
-    @State private var pickedItem: PhotosPickerItem?
+    /// A whole selection, not one photograph. → the picker below.
+    @State private var pickedItems: [PhotosPickerItem] = []
     @State private var showingPhotoPicker = false
     @State private var showingCamera = false
     @State private var showingScanner = false
@@ -366,24 +367,47 @@ struct TerminalView: View {
             .sheet(isPresented: $showingAbout) {
                 AboutView(onStartDemo: startDemo)
             }
-            .photosPicker(isPresented: $showingPhotoPicker, selection: $pickedItem, matching: .images)
-            .onChange(of: pickedItem) { _, item in
-                guard let item else { return }
+            // ⚠️ MANY AT ONCE, NOT ONE AT A TIME. His ask, 2026-09-05: "picture select
+            // needs to let me pick multiple and not one at a time." Sending a set of
+            // photographs meant reopening the picker for each one — and he takes them in
+            // batches, so the old way charged him the whole gesture per picture.
+            //
+            // No `maxSelectionCount`, deliberately: a cap here is a number I would be
+            // inventing, and the real limits are his patience and the far end's disk.
+            .photosPicker(isPresented: $showingPhotoPicker, selection: $pickedItems, matching: .images)
+            .onChange(of: pickedItems) { _, items in
+                guard !items.isEmpty else { return }
                 Task {
-                    defer { pickedItem = nil }
-                    guard let data = try? await item.loadTransferable(type: Data.self) else {
-                        transcript.append(.init(kind: .failure, text: "That picture could not be read."))
-                        return
+                    // Cleared first so a second selection while these are still sending
+                    // is not treated as a change back to the same list.
+                    let batch = items
+                    pickedItems = []
+
+                    // ⚠️ ONE AT A TIME OVER THE WIRE, IN THE ORDER HE PICKED THEM. The
+                    // choosing is parallel; the sending is not. Each upload names its
+                    // file back to him, and interleaved uploads would make that record
+                    // unreadable — and out of order, which for a set of scanned pages is
+                    // the difference between a document and a pile.
+                    for (index, item) in batch.enumerated() {
+                        let position = batch.count > 1 ? " (\(index + 1) of \(batch.count))" : ""
+
+                        guard let data = try? await item.loadTransferable(type: Data.self) else {
+                            transcript.append(.init(kind: .failure,
+                                                    text: "That picture could not be read\(position)."))
+                            continue   // ⚠️ NOT `return` — one bad photo must not silently
+                                       // cancel the rest of a batch he selected.
+                        }
+                        #if os(iOS)
+                        guard let image = UIImage(data: data), let jpeg = PhotoSend.prepare(image) else {
+                            transcript.append(.init(kind: .failure,
+                                                    text: "That picture could not be prepared\(position)."))
+                            continue
+                        }
+                        await sendImage(jpeg)
+                        #else
+                        await sendImage(data)
+                        #endif
                     }
-                    #if os(iOS)
-                    guard let image = UIImage(data: data), let jpeg = PhotoSend.prepare(image) else {
-                        transcript.append(.init(kind: .failure, text: "That picture could not be prepared."))
-                        return
-                    }
-                    await sendImage(jpeg)
-                    #else
-                    await sendImage(data)
-                    #endif
                 }
             }
             #if os(iOS)
