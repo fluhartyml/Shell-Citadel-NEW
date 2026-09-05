@@ -237,6 +237,12 @@ struct ConnectionEditor: View {
                         Text(voice.name).tag(String?.some(voice.identifier))
                     }
                 }
+                // ⚠️ IT SAYS HELLO THE MOMENT YOU PICK ONE. His idea: a list of names is
+                // blind, and the only thing a voice has to do for him is be tellable
+                // apart from another room. Hearing it is the only way to judge that.
+                .onChange(of: connection.voiceIdentifier) { _, chosen in
+                    SpokenOutput.shared.preview(voiceIdentifier: chosen)
+                }
             } header: {
                 HStack {
                     Text("Mode")

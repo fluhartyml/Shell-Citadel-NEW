@@ -86,6 +86,34 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
     /// he set in his own OS settings and the one he has twice told me not to override.
     var voiceIdentifier: String?
 
+    /// Say one short line in a given voice, so a name in a list becomes a sound.
+    ///
+    /// ⚠️ HIS IDEA, 2026-09-04: "can it automatically say hello for each tts voice you
+    /// select or change to?" Picking from a list of names is otherwise blind — "Ava" and
+    /// "Tom" tell you nothing about which one you can follow from another room, which is
+    /// the only thing that matters to him about a voice.
+    ///
+    /// ⚠️ IT SPEAKS EVEN WHEN OUTPUT IS MUTED, AND THAT IS DELIBERATE. Choosing a voice
+    /// IS asking to hear it; refusing because the speaker toggle is off would leave the
+    /// control silent at the one moment it is being used on purpose. It does not touch
+    /// `isEnabled`, so the mute is exactly where he left it afterwards.
+    func preview(voiceIdentifier: String?) {
+        synthesizer.stopSpeaking(at: .immediate)
+        let utterance = AVSpeechUtterance(string: "Hello.")
+        if let voiceIdentifier, let voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier) {
+            utterance.voice = voice
+        }
+        // The microphone still has to go deaf first, or the sample lands back in the
+        // composer as something he said.
+        VoiceCoordinator.shared.willSpeak()
+        #if os(iOS)
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+        try? AVAudioSession.sharedInstance().setActive(true)
+        #endif
+        isSpeaking = true
+        synthesizer.speak(utterance)
+    }
+
     func speak(_ text: String) {
         guard isEnabled else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
