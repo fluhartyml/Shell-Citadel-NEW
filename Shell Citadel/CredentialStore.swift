@@ -1,4 +1,21 @@
 //
+//  ⚠️ DECIDED 2026-09-04: PASSWORDS STAY ON THE DEVICE. NOT A LIMITATION — A CHOICE.
+//
+//  When his connections began syncing and the passwords did not, he asked whether that
+//  was "apple quirk". It is not: the Keychain can sync through iCloud Keychain, and this
+//  app deliberately does not ask it to.
+//
+//  He kept it, and his reason is better than the one I had. Mine was a promise the sheet
+//  makes — "never in iCloud, never in a backup". His was that the behaviour is right:
+//  "it seems official like keep it, thats what the keychain id for and it bio challenges
+//  the user at least for the cross device move."
+//
+//  The Face ID prompt on a new device is the FEATURE. A connection arriving on a phone
+//  complete except for its secret means the secret crossed a person, not a network — and
+//  the one moment a stolen sync would matter is the one moment the device asks who you
+//  are. Typing it once is the price, and it is small.
+//
+//
 //  CredentialStore.swift
 //  Shell Citadel
 //
