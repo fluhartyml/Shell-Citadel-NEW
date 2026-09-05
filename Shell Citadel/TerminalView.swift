@@ -388,8 +388,17 @@ struct TerminalView: View {
             // place you would type the answer. He noticed it was gone before he noticed
             // the feature was — 2026-09-04: "in the typing bar where it says not
             // connected you used to have ssh user@servername.local."
-            TextField(isConnected ? "Type a command" : "ssh user@server.local", text: $input)
+            TextField("",
+                      text: $input,
+                      prompt: Text(isConnected ? "Type a command" : "ssh user@server.local")
+                          // ⚠️ THE HINT MUST FIT, WHOLE. Truncated to
+                          // "ssh user@server.loc..." it stops being an example and
+                          // becomes a puzzle — the part it cuts is the part that says
+                          // .local, which is the whole point of the suggestion.
+                          .font(.system(.callout, design: .monospaced)))
                 .font(.system(.body, design: .monospaced))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .autocorrectionDisabled()
                 #if os(iOS)
                 .textInputAutocapitalization(.never)
