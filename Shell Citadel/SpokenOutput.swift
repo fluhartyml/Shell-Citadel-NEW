@@ -67,6 +67,20 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
 
     private(set) var isSpeaking = false
 
+    /// How many utterances are still queued or speaking.
+    ///
+    /// ⚠️ A COUNT, NOT `synthesizer.isSpeaking`, AND THAT DISTINCTION COST A BUILD.
+    /// Build 79 guarded the finish handler with `!synthesizer.isSpeaking` to stop the
+    /// microphone reopening between sentences. It reads as true INSIDE the callback for
+    /// the last utterance too, so the guard swallowed the final finish, the coordinator
+    /// was never told speech had ended, and the microphone never came back: he pressed
+    /// mic, heard "Listening", and watched the icon stay red with a slash.
+    ///
+    /// Counting what was handed to the synthesiser answers the real question — is
+    /// anything left — without asking an API that is ambiguous at exactly the moment it
+    /// matters.
+    private var pending = 0
+
     /// Set when a chosen voice could not be used, so the interface can say why.
     private(set) var lastProblem: String?
 
@@ -164,6 +178,7 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         armAudioSession()
         #endif
         isSpeaking = true
+        pending += 1
         synthesizer.speak(utterance)
     }
 
@@ -188,6 +203,7 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         armAudioSession()
         #endif
         isSpeaking = true
+        pending += 1
         synthesizer.speak(utterance)
     }
 
@@ -249,11 +265,13 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         }
 
         isSpeaking = true
+        pending += 1
         synthesizer.speak(utterance)
     }
 
     func stop() {
         synthesizer.stopSpeaking(at: .immediate)
+        pending = 0
         isSpeaking = false
         VoiceCoordinator.shared.didFinishSpeaking()
     }
@@ -308,33 +326,13 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
             // each one, so telling the coordinator "finished" here reopened the microphone
             // BETWEEN sentences, and it heard the next sentence and sent it back as his.
             // He watched his own transcript fill with my words tagged HF.
-            //
-            // `synthesizer.isSpeaking` is still true while anything remains queued, which
-            // is exactly the question that needed asking.
-            guard !synthesizer.isSpeaking else { return }
+            pending = max(0, pending - 1)
+            guard pending == 0 else { return }
+
             isSpeaking = false
             VoiceCoordinator.shared.didFinishSpeaking()
             #if os(iOS)
-            // ⚠️ ONLY WHEN NOTHING IS STILL SPEAKING, AND THIS IS THE TTS DROP.
-            //
-            // Michael, 2026-09-05: "i had to mute and unmute" to get speech back — the
-            // same failure that followed this app across its rebuild and was written off
-            // as unexplained on 2026-09-01.
-            //
-            // This delegate arrives on another thread and hops to the main actor, so it
-            // is asynchronous by construction. Replies arrive as whole lines, often
-            // several in a row, so the order could be: line one finishes, a deactivation
-            // is queued, line two starts speaking, and THEN the queued deactivation runs
-            // and pulls the session out from under it. The session is left deactivated,
-            // every later `setActive(true)` fails into a `try?`, and speech is silent
-            // until the mute toggle sets the whole thing up again — which is exactly the
-            // gesture he found.
-            //
-            // Asking the synthesiser whether it is still speaking closes the window: the
-            // last utterance to finish is the only one that hands the audio back.
-            if !synthesizer.isSpeaking {
-                releaseAudioSession()
-            }
+            releaseAudioSession()
             #endif
         }
     }
@@ -342,6 +340,10 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                                        didCancel utterance: AVSpeechUtterance) {
         Task { @MainActor in
+            // A cancelled utterance must decrement too, or the count never reaches zero
+            // and the microphone stays shut for good.
+            pending = max(0, pending - 1)
+            guard pending == 0 else { return }
             isSpeaking = false
             VoiceCoordinator.shared.didFinishSpeaking()
         }

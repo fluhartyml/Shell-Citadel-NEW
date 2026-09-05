@@ -104,6 +104,36 @@ struct TerminalView: View {
         }
     }
 
+    // MARK: - The microphone's three states
+    //
+    // ⚠️ RED MUST KEEP MEANING "HE MUTED IT". His question, 2026-09-05, after pressing
+    // mic and seeing it go red: *"how about a color change."*
+    //
+    // There are three states, not two, and collapsing them into two is what made the
+    // interface lie. The app closes the microphone every time it speaks — that is the
+    // half-duplex rule working — and showing that as the same red as a deliberate mute
+    // told him he had muted something he had just switched on.
+
+    /// True while the app is holding the microphone shut in order to talk.
+    private var micHeldForSpeech: Bool {
+        !dictation.isListening && VoiceCoordinator.shared.owner == .speaking
+    }
+
+    private var micSymbol: String {
+        dictation.isListening ? "mic.fill" : "mic.slash"
+    }
+
+    private var micLabel: String {
+        if dictation.isListening { return "Microphone on" }
+        return micHeldForSpeech ? "Microphone paused while speaking" : "Microphone muted"
+    }
+
+    /// Green listening, orange deaf-while-speaking, red muted by him.
+    private var micTint: Color {
+        if dictation.isListening { return .green }
+        return micHeldForSpeech ? .orange : .red
+    }
+
     /// The composer's focus. The ONLY @FocusState in the app.
     @FocusState private var composerFocused: Bool
 
@@ -255,10 +285,9 @@ struct TerminalView: View {
                             dictation.start()
                         }
                     } label: {
-                        Label(dictation.isListening ? "Microphone on" : "Microphone muted",
-                              systemImage: dictation.isListening ? "mic.fill" : "mic.slash")
+                        Label(micLabel, systemImage: micSymbol)
                     }
-                    .tint(dictation.isListening ? .green : .red)
+                    .tint(micTint)
                 }
                 ToolbarItem(placement: .automatic) {
                     // ⚠️ ONE TAP, ALWAYS REACHABLE. Whether the room is quiet changes

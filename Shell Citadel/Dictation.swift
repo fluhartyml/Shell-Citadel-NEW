@@ -308,14 +308,23 @@ final class Dictation: ObservableObject {
         }
     }
 
-    func stop() {
+    /// ⚠️ `silent` IS FOR THE COORDINATOR, NOT FOR HIM. His question, 2026-09-05:
+    /// *"can it silently mute? or does that matter. how about a color change."*
+    ///
+    /// It matters twice. The end-recording tone is a sound played into a room the app is
+    /// about to speak into, and it announces a mute he never asked for. When this file
+    /// closes the microphone to let the app talk, that is bookkeeping — and bookkeeping
+    /// that makes a noise is indistinguishable from an action he took.
+    func stop(silent: Bool = false) {
         silenceTimer?.invalidate()
         silenceTimer = nil
         teardown()
         isListening = false
         partial = ""
         level = 0
-        AudioServicesPlaySystemSound(1114)   // the matching "end recording" tone
+        if !silent {
+            AudioServicesPlaySystemSound(1114)   // the matching "end recording" tone
+        }
     }
 
     private func teardown() {
@@ -340,7 +349,9 @@ final class Dictation: ObservableObject {
             // ⚠️ `announce: false` — see start(announce:). The coordinator reopening the
             // microphone is not the user unmuting, and announcing it feeds the loop.
             start: { [weak self] in Task { @MainActor in self?.start(announce: false) } },
-            stop: { [weak self] in Task { @MainActor in self?.stop() } }
+            // Silent: see stop(silent:). A tone here plays into the room a half-second
+            // before the app speaks, and reads as a mute he did not ask for.
+            stop: { [weak self] in Task { @MainActor in self?.stop(silent: true) } }
         )
     }
 
