@@ -85,8 +85,16 @@ struct TerminalView: View {
     /// Status and failure keep their own colours. Those are the app talking about itself
     /// — carrying meaning rather than taste — and a failure that took on his chosen green
     /// would stop looking like a failure.
+    /// ⚠️ THE SYSTEM'S APPEARANCE, UNLESS HE IS PREVIEWING THE OTHER ONE. His ask
+    /// 2026-09-05: picking a Light or Dark tab in Settings shows him those colours here
+    /// straight away, and the next real system transition takes it back.
+    /// → TerminalAppearance.swift
+    private var effectiveScheme: ColorScheme {
+        TerminalAppearance.shared.resolved(system: scheme)
+    }
+
     private func colour(for kind: TranscriptLine.Kind) -> Color {
-        let dark = scheme == .dark
+        let dark = effectiveScheme == .dark
         let pair = HexColor.shades(dark ? settings.darkYou : settings.lightYou)
         switch kind {
         case .command: return pair.yours
@@ -479,7 +487,11 @@ struct TerminalView: View {
                 // it would have meant a readout of a width the text was not using.
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(HexColor.color(scheme == .dark ? settings.darkBackground : settings.lightBackground))
+            // ⚠️ THE BACKGROUND FOLLOWS THE PREVIEW TOO. He asked for "just the terminal
+            // text", and taking that literally would draw the Light text colour on the
+            // Dark background — black on near-black, unreadable, and useless as a
+            // preview of the thing he is editing. The pair is what an appearance is.
+            .background(HexColor.color(effectiveScheme == .dark ? settings.darkBackground : settings.lightBackground))
             // ⚠️ THIS IS WHERE THE COLUMN AND LINE COUNTS COME FROM. Settings divides
             // this by the size of one character — so it must be the area text is really
             // drawn into, with the padding taken off, or the numbers would be generous

@@ -94,6 +94,9 @@ enum HexColor {
 private enum ColourTab: String, CaseIterable {
     case light = "Light"
     case dark = "Dark"
+
+    /// The appearance this tab is editing, so choosing it can preview it.
+    var scheme: ColorScheme { self == .dark ? .dark : .light }
 }
 
 
@@ -106,6 +109,10 @@ struct SettingsView: View {
     /// What the terminal is actually being drawn into on this device, so the column and
     /// line counts describe his screen rather than a nominal one.
     @State private var geometry = TerminalGeometry.shared
+    /// The colour preview the tabs drive. Per device, in memory, never synced.
+    @State private var appearance = TerminalAppearance.shared
+    /// The system's own appearance — real, because this app never forces its own.
+    @Environment(\.colorScheme) private var scheme
 
     // MARK: - Consequences of the size
     //
@@ -301,6 +308,29 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
+                    // ⚠️ PICKING A TAB SHOWS THOSE COLOURS IN THE TERMINAL AT ONCE. His
+                    // ask, 2026-09-05: "can you set the tab to overide system light dark
+                    // mode until the system transitions again?" Editing the appearance he
+                    // is not currently in used to mean changing the whole Mac to see the
+                    // result. → TerminalAppearance.swift
+                    .onChange(of: tab) { _, chosen in
+                        appearance.preview(chosen.scheme, systemIs: scheme)
+                    }
+
+                    // ⚠️ A PREVIEW WITH NO VISIBLE WAY OUT IS A BUG IN WAITING. It ends
+                    // by itself at the next system transition, which may be hours away,
+                    // and until then nothing on screen would explain why the terminal is
+                    // light in a dark room. So it says so, and offers the way back.
+                    if let previewing = appearance.preview, previewing != scheme {
+                        HStack {
+                            Text("Terminal is showing \(previewing == .dark ? "dark" : "light") colours")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Follow system") { appearance.release() }
+                                .font(.caption)
+                        }
+                    }
 
                     // ⚠️ ONLY TWO CONTROLS LIVE IN HERE, AND THAT IS THE POINT OF THE
                     // TABS. "the tabs are only for the text color and background color."
