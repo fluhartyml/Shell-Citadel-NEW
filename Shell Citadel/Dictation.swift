@@ -157,9 +157,24 @@ final class Dictation: ObservableObject {
         isListening ? stop() : start()
     }
 
-    func start() {
+
+    /// False while the coordinator is restoring a microphone it closed to speak.
+    private var shouldAnnounce = true
+
+    /// ⚠️ `announce` IS THE WHOLE FIX FOR THE LOOP OF 2026-09-05.
+    ///
+    /// Build 74 made VoiceCoordinator reopen the microphone after speech — correct, and it
+    /// created a cycle: reopening called `start()`, `start()` announced "Listening",
+    /// announcing spoke, speaking closed the microphone, finishing reopened it, and it
+    /// announced again. He watched it fill the Mac window: *"its stuck."*
+    ///
+    /// The user unmuting is an event worth announcing. **This file putting the microphone
+    /// back the way it was is not an event at all** — it is bookkeeping, and bookkeeping
+    /// must be silent or it becomes its own input.
+    func start(announce: Bool = true) {
         guard !isListening else { return }
         problem = nil
+        shouldAnnounce = announce
 
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             Task { @MainActor in
@@ -282,6 +297,9 @@ final class Dictation: ObservableObject {
         // microphone icon — but hearing it on every unmute would be a lecture. So: said
         // in full the first time on this device, and after that the tone alone carries
         // it, because by then he knows what the tone means.
+        // Silent when the coordinator is merely restoring the microphone it borrowed.
+        guard shouldAnnounce else { return }
+
         if UserDefaults.standard.bool(forKey: Key.heardPreamble) {
             notice("Listening.")
         } else {
@@ -319,7 +337,9 @@ final class Dictation: ObservableObject {
     /// is the bug this prevents, and it has bitten twice, once through AirPods.
     func registerWithCoordinator() {
         VoiceCoordinator.shared.registerListener(
-            start: { [weak self] in Task { @MainActor in self?.start() } },
+            // ⚠️ `announce: false` — see start(announce:). The coordinator reopening the
+            // microphone is not the user unmuting, and announcing it feeds the loop.
+            start: { [weak self] in Task { @MainActor in self?.start(announce: false) } },
             stop: { [weak self] in Task { @MainActor in self?.stop() } }
         )
     }
