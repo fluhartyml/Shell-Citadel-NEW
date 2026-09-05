@@ -37,6 +37,34 @@ import SwiftUI
 /// colour object is not — and when a colour goes wrong, being able to read what it
 /// actually is beats being able to render it.
 enum HexColor {
+
+    /// ⚠️ ONE CHOICE, TWO SHADES. His rule, 2026-09-04: "so whatever color i choose my
+    /// color is dark and yours is lighter."
+    ///
+    /// That is better than two pickers and not merely fewer controls. Two independent
+    /// colours can be set to the same value, or to two that clash, and then the one thing
+    /// the pair exists to do — telling his words from the machine's at a glance — quietly
+    /// stops working. Deriving both from one hue makes them impossible to confuse and
+    /// impossible to accidentally equalise.
+    ///
+    /// The hue is kept and only brightness moves, so it stays the colour he picked rather
+    /// than becoming a different one.
+    static func shades(_ hex: String) -> (yours: Color, theirs: Color) {
+        #if os(macOS)
+        let base = NSColor(color(hex)).usingColorSpace(.deviceRGB) ?? .green
+        var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        base.getHue(&h, saturation: &sat, brightness: &b, alpha: &a)
+        #else
+        var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(color(hex)).getHue(&h, saturation: &sat, brightness: &b, alpha: &a)
+        #endif
+        // ⚠️ FLOORED AND CAPPED. A very dark pick would otherwise make "his" unreadable,
+        // and a very light one would make "theirs" white on white.
+        let yours = Color(hue: h, saturation: sat, brightness: max(0.28, b * 0.62))
+        let theirs = Color(hue: h, saturation: max(0.0, sat * 0.82), brightness: min(0.97, max(b, 0.55) * 1.45))
+        return (yours, theirs)
+    }
+
     static func color(_ hex: String) -> Color {
         var s = hex.trimmingCharacters(in: .whitespaces)
         if s.hasPrefix("#") { s.removeFirst() }
@@ -201,31 +229,44 @@ struct SettingsView: View {
                     // TABS. "the tabs are only for the text color and background color."
                     // Anything else in this section would imply it could differ between
                     // light and dark, and nothing else can.
+                    // ⚠️ THREE COLOURS PER APPEARANCE, NOT TWO. His spec: the background,
+                    // what HE types, and what comes BACK. The last two are separate
+                    // because in dark mode they are deliberately different greens.
+                    //
+                    // Labelled by role rather than by who — "you" and "the machine" —
+                    // because the far end might be a Pi running a build, and naming it
+                    // after one particular thing on the other end is the same mistake as
+                    // calling the mode "Claude".
                     switch tab {
                     case .light:
-                        ColorPicker("Text", selection: Binding(
-                            get: { HexColor.color(settings.lightText) },
-                            set: { settings.lightText = HexColor.hex($0) }))
                         ColorPicker("Background", selection: Binding(
                             get: { HexColor.color(settings.lightBackground) },
                             set: { settings.lightBackground = HexColor.hex($0) }))
-                    case .dark:
                         ColorPicker("Text", selection: Binding(
-                            get: { HexColor.color(settings.darkText) },
-                            set: { settings.darkText = HexColor.hex($0) }))
+                            get: { HexColor.color(settings.lightYou) },
+                            set: { settings.lightYou = HexColor.hex($0) }))
+                    case .dark:
                         ColorPicker("Background", selection: Binding(
                             get: { HexColor.color(settings.darkBackground) },
                             set: { settings.darkBackground = HexColor.hex($0) }))
+                        ColorPicker("Text", selection: Binding(
+                            get: { HexColor.color(settings.darkYou) },
+                            set: { settings.darkYou = HexColor.hex($0) }))
                     }
 
-                    // A live sample, so a colour is judged as text rather than as a swatch.
-                    Text("$ who am i")
-                        .font(.system(size: settings.fontSize, design: .monospaced))
-                        .foregroundStyle(HexColor.color(tab == .light ? settings.lightText : settings.darkText))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
-                        .background(HexColor.color(tab == .light ? settings.lightBackground : settings.darkBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    // ⚠️ THE SAMPLE SHOWS BOTH ROLES, because the only question worth
+                    // asking of these colours is whether the two are distinguishable from
+                    // each other — which a single line of text cannot answer.
+                    VStack(alignment: .leading, spacing: 3) {
+                        let pair = HexColor.shades(tab == .light ? settings.lightYou : settings.darkYou)
+                        Text("$ who am i").foregroundStyle(pair.yours)
+                        Text("michaelfluharty  ttys004").foregroundStyle(pair.theirs)
+                    }
+                    .font(.system(size: settings.fontSize, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                    .background(HexColor.color(tab == .light ? settings.lightBackground : settings.darkBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
                 } header: {
                     Text("Colours")
                 }

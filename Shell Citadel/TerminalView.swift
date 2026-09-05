@@ -76,11 +76,21 @@ struct TerminalView: View {
     /// the text colour to something else, because those colours are carrying meaning
     /// rather than taste. Only `.output` and `.command` — the far end's own words, and
     /// his — take the colour he picked.
+    /// ⚠️ TWO TEXT COLOURS, NOT ONE, AND THE DISTINCTION IS HIS.
+    ///
+    /// 2026-09-04: "for dark mode i wanted a dark green for my text and a lighter green
+    /// for your text." What he typed and what came back are different things, and in a
+    /// transcript that scrolls they need telling apart at a glance rather than by reading.
+    ///
+    /// Status and failure keep their own colours. Those are the app talking about itself
+    /// — carrying meaning rather than taste — and a failure that took on his chosen green
+    /// would stop looking like a failure.
     private func colour(for kind: TranscriptLine.Kind) -> Color {
-        let chosen = HexColor.color(scheme == .dark ? settings.darkText : settings.lightText)
+        let dark = scheme == .dark
+        let pair = HexColor.shades(dark ? settings.darkYou : settings.lightYou)
         switch kind {
-        case .output: return chosen
-        case .command: return chosen.opacity(0.75)
+        case .command: return pair.yours
+        case .output:  return pair.theirs
         case .status, .failure: return kind.color
         }
     }

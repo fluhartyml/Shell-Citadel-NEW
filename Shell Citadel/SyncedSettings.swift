@@ -54,10 +54,12 @@ final class SyncedSettings {
         static let lines = "terminal.lines"
         static let fontSize = "terminal.fontSize"
         static let fontName = "terminal.fontName"
-        static let lightText = "terminal.light.text"
         static let lightBackground = "terminal.light.background"
-        static let darkText = "terminal.dark.text"
+        static let lightYou = "terminal.light.you"
+        static let lightThem = "terminal.light.them"
         static let darkBackground = "terminal.dark.background"
+        static let darkYou = "terminal.dark.you"
+        static let darkThem = "terminal.dark.them"
     }
 
     /// ⚠️ THE DEFAULTS ARE GENERIC, NOT HIS.
@@ -77,10 +79,21 @@ final class SyncedSettings {
         static let fontSize = 13.0
         /// Empty means the system monospaced face.
         static let fontName = ""
-        static let lightText = "#000000"
+        // ⚠️ HIS SPEC, 2026-09-04: "for the default to be in light mode a light
+        // background with black text, and for dark mode i wanted a dark green for my text
+        // and a lighter green for your text."
+        //
+        // Light mode is deliberately plain — a page. Dark mode is a green terminal, and
+        // the two greens carry a real distinction: the darker one is what HE typed, the
+        // lighter one is what came back. He listens to this app from another room, so the
+        // moment he does look at it, whose words are whose has to be answerable without
+        // reading them.
         static let lightBackground = "#FFFFFF"
-        static let darkText = "#FFFFFF"
-        static let darkBackground = "#1E1E1E"
+        static let lightYou = "#000000"
+        static let lightThem = "#000000"
+        static let darkBackground = "#0E120E"
+        static let darkYou = "#2E8B57"
+        static let darkThem = "#8FE8A8"
     }
 
     /// How long a pause means he has finished a sentence.
@@ -104,10 +117,12 @@ final class SyncedSettings {
     var lines: Int { didSet { store(lines, Key.lines, "lines -> \(lines)") } }
     var fontSize: Double { didSet { store(fontSize, Key.fontSize, "font size -> \(fontSize)") } }
     var fontName: String { didSet { store(fontName, Key.fontName, "font -> \(fontName)") } }
-    var lightText: String { didSet { store(lightText, Key.lightText, "light text -> \(lightText)") } }
     var lightBackground: String { didSet { store(lightBackground, Key.lightBackground, "light bg -> \(lightBackground)") } }
-    var darkText: String { didSet { store(darkText, Key.darkText, "dark text -> \(darkText)") } }
+    var lightYou: String { didSet { store(lightYou, Key.lightYou, "light you -> \(lightYou)") } }
+    var lightThem: String { didSet { store(lightThem, Key.lightThem, "light them -> \(lightThem)") } }
     var darkBackground: String { didSet { store(darkBackground, Key.darkBackground, "dark bg -> \(darkBackground)") } }
+    var darkYou: String { didSet { store(darkYou, Key.darkYou, "dark you -> \(darkYou)") } }
+    var darkThem: String { didSet { store(darkThem, Key.darkThem, "dark them -> \(darkThem)") } }
 
     /// Put everything on this screen back to the shipped values.
     func resetAppearance() {
@@ -115,10 +130,12 @@ final class SyncedSettings {
         lines = Default.lines
         fontSize = Default.fontSize
         fontName = Default.fontName
-        lightText = Default.lightText
         lightBackground = Default.lightBackground
-        darkText = Default.darkText
+        lightYou = Default.lightYou
+        lightThem = Default.lightThem
         darkBackground = Default.darkBackground
+        darkYou = Default.darkYou
+        darkThem = Default.darkThem
         Diagnostics.shared.record(.app, "appearance reset to defaults")
     }
 
@@ -140,10 +157,12 @@ final class SyncedSettings {
         let fs = local.double(forKey: Key.fontSize)
         fontSize = fs > 0 ? fs : Default.fontSize
         fontName = local.string(forKey: Key.fontName) ?? Default.fontName
-        lightText = local.string(forKey: Key.lightText) ?? Default.lightText
         lightBackground = local.string(forKey: Key.lightBackground) ?? Default.lightBackground
-        darkText = local.string(forKey: Key.darkText) ?? Default.darkText
+        lightYou = local.string(forKey: Key.lightYou) ?? Default.lightYou
+        lightThem = local.string(forKey: Key.lightThem) ?? Default.lightThem
         darkBackground = local.string(forKey: Key.darkBackground) ?? Default.darkBackground
+        darkYou = local.string(forKey: Key.darkYou) ?? Default.darkYou
+        darkThem = local.string(forKey: Key.darkThem) ?? Default.darkThem
 
         NotificationCenter.default.addObserver(
             forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
