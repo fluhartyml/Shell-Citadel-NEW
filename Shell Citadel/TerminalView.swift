@@ -669,27 +669,47 @@ struct TerminalView: View {
 
     /// Pull `ssh [user@]host [-p port]` — or a bare `user@host` — out of a typed line.
     ///
-    /// ⚠️ IT RETURNS nil RATHER THAN GUESSING. Anything that is not clearly one of those
-    /// two shapes is somebody's command, not a connection request, and taking it over
-    /// would be worse than ignoring it. A bare word with no `@` is not a host here, even
-    /// though `ssh myserver` is valid — because at this point in the app it is far more
-    /// likely to be a typo or a command than an intention to connect.
+    /// ⚠️ IT DOES NOT SPLIT THE TARGET ON SPACES, AND THAT WAS A REAL BUG. The first
+    /// version tokenised the whole line, so `ssh Michael Fluharty@Michael's MacBook
+    /// Air.local` never reached the `@` at all — the first token was "Michael", which has
+    /// no `@`, and the whole thing was rejected as not-a-connection.
+    ///
+    /// He found it by announcing the test before running it: "i m going to type incorrect
+    /// formatted accounts and host strings." Dictation and a soft keyboard both produce
+    /// exactly this — capitals, spaces and an apostrophe from a machine named after its
+    /// owner. That is not a malformed input to be refused; it is the normal input to be
+    /// understood and then cleaned.
+    ///
+    /// So everything after `ssh` and its flags is treated as ONE target, split at the
+    /// LAST `@` — a host never contains one, and the account is whatever came before.
+    /// `Connection.normalised()` then does the tidying, which is why this does not try
+    /// to: parsing decides what the parts ARE, normalising decides what they may CONTAIN,
+    /// and mixing those two jobs is how one of them gets forgotten.
     static func parseSSHLine(_ line: String) -> (user: String?, host: String, port: Int?)? {
-        var parts = line.split(separator: " ").map(String.init)
-        guard !parts.isEmpty else { return nil }
-        if parts[0].lowercased() == "ssh" { parts.removeFirst() }
-        guard !parts.isEmpty else { return nil }
+        var text = line.trimmingCharacters(in: .whitespaces)
 
-        var port: Int?
-        if let flag = parts.firstIndex(of: "-p"), parts.indices.contains(flag + 1) {
-            port = Int(parts[flag + 1])
-            parts.removeSubrange(flag...(flag + 1))
+        // Drop a leading `ssh`, case-insensitively.
+        if text.lowercased().hasPrefix("ssh ") {
+            text = String(text.dropFirst(4)).trimmingCharacters(in: .whitespaces)
+        } else if text.lowercased() == "ssh" {
+            return nil
         }
 
-        guard let target = parts.first, target.contains("@") else { return nil }
-        let halves = target.split(separator: "@", maxSplits: 1).map(String.init)
-        guard halves.count == 2, !halves[0].isEmpty, !halves[1].isEmpty else { return nil }
-        return (user: halves[0], host: halves[1], port: port)
+        // `-p 2222` anywhere, pulled out before the target is read.
+        var port: Int?
+        if let range = text.range(of: #"\s*-p\s+(\d+)"#, options: .regularExpression) {
+            port = Int(text[range].filter(\.isNumber))
+            text.removeSubrange(range)
+            text = text.trimmingCharacters(in: .whitespaces)
+        }
+
+        // ⚠️ THE LAST @, NOT THE FIRST. A host cannot contain one; an account name that
+        // somehow did would otherwise take the host with it.
+        guard let at = text.lastIndex(of: "@") else { return nil }
+        let user = String(text[text.startIndex..<at])
+        let host = String(text[text.index(after: at)...])
+        guard !user.isEmpty, !host.isEmpty else { return nil }
+        return (user: user, host: host, port: port)
     }
 
     /// Play the script. Touches nothing but the transcript.
@@ -737,6 +757,11 @@ struct TerminalView: View {
             connection.host = parsed.host
             connection.username = parsed.user ?? connection.username
             if let port = parsed.port { connection.port = port }
+            // ⚠️ NORMALISE NOW, SO HE SEES WHAT WILL ACTUALLY BE USED. Cleaning it only
+            // at connect time would show him the mess he typed on the password screen and
+            // send something different to the server — and that screen exists to let him
+            // catch a wrong character before he commits.
+            connection = connection.normalised()
             // A typed ssh line is always a plain shell — nothing in it names a session.
             connection.mode = .shell
             transcript.append(.init(kind: .status,
