@@ -91,6 +91,25 @@ struct TerminalView: View {
                 HStack {
                     LinkLightView(light: light)
                     Spacer()
+                    // ⚠️ CONNECT LIVES HERE NOW, AND iOS FORCED THE ISSUE — CORRECTLY.
+                    //
+                    // With six items in the toolbar a phone collapses the overflow into
+                    // a "..." menu, and the one it hid was About: "the about info is
+                    // hidden behind a truncated dot dot dot." That is the same "..." he
+                    // pointed at earlier without either of us knowing what it was.
+                    //
+                    // Moving Connect down is not a workaround for the crowding, it is
+                    // where the button should always have been: this row reports the
+                    // state of the link, and this button is the one control that changes
+                    // it. The report and the switch belong together, and the toolbar is
+                    // left holding only things that open something.
+                    Button(isConnected ? "Disconnect" : "Connect") {
+                        Task { await toggleConnection() }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .tint(isConnected ? .red : .accentColor)
+                    .disabled(isBusy || connection.host.isEmpty || connection.username.isEmpty)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 5)
@@ -160,21 +179,6 @@ struct TerminalView: View {
                         // both were on screen.
                         Label("Connection", systemImage: "phone.connection.fill")
                     }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button(isConnected ? "Disconnect" : "Connect") {
-                        Task { await toggleConnection() }
-                    }
-                    // ⚠️ RED WHILE CONNECTED, BECAUSE THE COLOUR DESCRIBES WHAT THE
-                    // BUTTON DOES, NOT WHAT THE STATE IS. His call, 2026-09-04: "the
-                    // connect pill changes to red disconnect while connected."
-                    //
-                    // It reads the opposite way to the status dot beside it, and that is
-                    // correct rather than confusing: green there means the link is good;
-                    // red here means pressing this ends it. One is a report, the other is
-                    // a warning, and they are never both describing the same thing.
-                    .tint(isConnected ? .red : .accentColor)
-                    .disabled(isBusy || connection.host.isEmpty || connection.username.isEmpty)
                 }
                 // ⚠️ THE MICROPHONE AND THE SPEAKER ARE A PAIR AND STAY ADJACENT.
                 // "a mic is supposed to be next to the speaker." They are the two halves
