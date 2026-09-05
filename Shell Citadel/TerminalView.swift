@@ -18,6 +18,13 @@ import VisionKit
 #endif
 
 struct TerminalView: View {
+    /// What the tab bar shows for this terminal. See Tabs.swift.
+    ///
+    /// ⚠️ THE TERMINAL WRITES TO IT; NOTHING READS BACK. The connection, session and
+    /// transcript stay here as @State, because that state is exactly what must survive a
+    /// tab switch. Only the label and the light travel outwards.
+    var tab: TerminalTab = TerminalTab()
+
     @State private var store = ConnectionStore()
     @State private var session = SSHSession()
     @State private var diagnostics = Diagnostics.shared
@@ -144,7 +151,25 @@ struct TerminalView: View {
                     .background(.orange)
                     .foregroundStyle(.black)
                 }
-                transcriptView
+                // ⚠️ A FRESH TAB SHOWS THE CARDS, THE WAY A NEW BROWSER TAB SHOWS
+                // FAVOURITES. Once this tab has connected even once it keeps its
+                // transcript, because that is its history and replacing it with a
+                // start page would throw away what he came back to read.
+                if tab.isFresh && !isConnected && transcript.isEmpty {
+                    ConnectionCards(
+                        connections: store.connections,
+                        onPick: { picked in
+                            // ⚠️ ONLY ASKS WHEN THERE IS SOMETHING TO LOSE. On a fresh
+                            // tab there is no live session, so picking a card simply
+                            // opens it — the prompt would be a question with one answer.
+                            connection = picked
+                            password = CredentialStore.password(for: picked) ?? ""
+                            Task { await toggleConnection() }
+                        },
+                        onNew: { showingConnection = true })
+                } else {
+                    transcriptView
+                }
                 Divider()
                 composer
             }
@@ -235,6 +260,29 @@ struct TerminalView: View {
                             }
                         }
                 }
+            }
+            // ⚠️ DORMANCY. Leaving a tab stops the WORK, never the SESSION — the SSH
+            // connection stays up, and only the file tailing and the heartbeat stop.
+            // Coming back resumes from the byte offset the reply channel already keeps,
+            // so the gap fills in order and nothing written while he was away is lost.
+            .onChange(of: tab.isFrontmost) { _, front in
+                if front {
+                    if isConnected {
+                        light.start(pinging: session)
+                        if connection.mode == .tmux { startFollowingReplies() }
+                    }
+                    Diagnostics.shared.record(.app, "tab awake \u{00B7} \(tab.title)")
+                } else {
+                    replyTask?.cancel()
+                    replyTask = nil
+                    light.stop()
+                    Diagnostics.shared.record(.app, "tab dormant \u{00B7} \(tab.title)")
+                }
+            }
+            .onChange(of: connection.title) { _, new in tab.title = new }
+            .onChange(of: isConnected) { _, live in
+                tab.isConnected = live
+                if live { tab.isFresh = false }
             }
             .sheet(isPresented: $showingSettings) { SettingsView() }
             .sheet(isPresented: $showingAbout) {
