@@ -161,8 +161,7 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         // which is the half-duplex rule the whole audio design rests on.
         VoiceCoordinator.shared.willSpeak()
         #if os(iOS)
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
-        try? AVAudioSession.sharedInstance().setActive(true)
+        armAudioSession()
         #endif
         isSpeaking = true
         synthesizer.speak(utterance)
@@ -186,8 +185,7 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         // composer as something he said.
         VoiceCoordinator.shared.willSpeak()
         #if os(iOS)
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
-        try? AVAudioSession.sharedInstance().setActive(true)
+        armAudioSession()
         #endif
         isSpeaking = true
         synthesizer.speak(utterance)
@@ -217,8 +215,7 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         #if os(iOS)
         // Duck other audio rather than stopping it, and mix, so a podcast or a call is
         // interrupted rather than killed.
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
-        try? AVAudioSession.sharedInstance().setActive(true)
+        armAudioSession()
         #endif
 
         let utterance = AVSpeechUtterance(string: trimmed)
@@ -261,6 +258,45 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         VoiceCoordinator.shared.didFinishSpeaking()
     }
 
+    // MARK: - The audio session
+    //
+    // ⚠️ THREE COPIES OF THIS BECAME ONE, AND EVERY FAILURE IS NOW RECORDED. The three
+    // call sites each did `try? setCategory(...)` and `try? setActive(true)` — six
+    // swallowed errors in the one path where "nothing happened and nothing said why" was
+    // the entire symptom. A `try?` on the line that arms the speaker is the reason a
+    // silent app looked like an unexplained mystery on 2026-09-01 and again today.
+
+    #if os(iOS)
+    /// Arms the session for speech. Records rather than hides a refusal.
+    private func armAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            // Duck other audio rather than stopping it, and mix, so a podcast or a call
+            // is interrupted rather than killed.
+            try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+        } catch {
+            Diagnostics.shared.failed(.app, "audio session category failed: \(error.localizedDescription)")
+        }
+        do {
+            try session.setActive(true)
+        } catch {
+            // ⚠️ THIS IS THE ONE THAT MATTERS. If activation is refused, the utterance is
+            // handed to the synthesiser and goes nowhere — no error, no sound, and the
+            // interface showing "speaking".
+            Diagnostics.shared.failed(.app, "audio session activation failed \u{2014} speech will be silent: \(error.localizedDescription)")
+        }
+    }
+
+    /// Hands the audio back to whatever else wanted it.
+    private func releaseAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            Diagnostics.shared.failed(.app, "audio session release failed: \(error.localizedDescription)")
+        }
+    }
+    #endif
+
     // MARK: - AVSpeechSynthesizerDelegate
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
@@ -269,7 +305,26 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
             isSpeaking = false
             VoiceCoordinator.shared.didFinishSpeaking()
             #if os(iOS)
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            // ⚠️ ONLY WHEN NOTHING IS STILL SPEAKING, AND THIS IS THE TTS DROP.
+            //
+            // Michael, 2026-09-05: "i had to mute and unmute" to get speech back — the
+            // same failure that followed this app across its rebuild and was written off
+            // as unexplained on 2026-09-01.
+            //
+            // This delegate arrives on another thread and hops to the main actor, so it
+            // is asynchronous by construction. Replies arrive as whole lines, often
+            // several in a row, so the order could be: line one finishes, a deactivation
+            // is queued, line two starts speaking, and THEN the queued deactivation runs
+            // and pulls the session out from under it. The session is left deactivated,
+            // every later `setActive(true)` fails into a `try?`, and speech is silent
+            // until the mute toggle sets the whole thing up again — which is exactly the
+            // gesture he found.
+            //
+            // Asking the synthesiser whether it is still speaking closes the window: the
+            // last utterance to finish is the only one that hands the audio back.
+            if !synthesizer.isSpeaking {
+                releaseAudioSession()
+            }
             #endif
         }
     }
