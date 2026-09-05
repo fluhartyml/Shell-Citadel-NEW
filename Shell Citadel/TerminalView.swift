@@ -104,19 +104,31 @@ struct TerminalView: View {
         }
     }
 
-    // MARK: - The microphone's three states
+    // MARK: - The microphone's four states
     //
-    // ⚠️ RED MUST KEEP MEANING "HE MUTED IT". His question, 2026-09-05, after pressing
-    // mic and seeing it go red: *"how about a color change."*
+    // ⚠️ HIS SPEC, 2026-09-05, VERBATIM: *"red for human mute, blue for standby
+    // listening, yellow for a claude mute, and a wiggly green for dictating."*
     //
-    // There are three states, not two, and collapsing them into two is what made the
-    // interface lie. The app closes the microphone every time it speaks — that is the
-    // half-duplex rule working — and showing that as the same red as a deliberate mute
-    // told him he had muted something he had just switched on.
+    // The colours carry two separate facts that were previously collapsed into one:
+    // WHETHER the microphone is open, and WHO closed it. Red used to mean both "you
+    // muted it" and "the app muted itself to speak", which is why pressing mic and
+    // watching it go red read as a fault.
+    //
+    // ⚠️ AND GREEN NOW MEANS SOMETHING IT DID NOT BEFORE. Blue is armed and hearing
+    // silence; green is armed and hearing HIM. That difference is the one that answers
+    // "is this thing actually picking me up" without him having to speak and wait.
+
+    /// Above this, the microphone is hearing something rather than room noise.
+    private static let speakingLevel: Double = 0.06
 
     /// True while the app is holding the microphone shut in order to talk.
     private var micHeldForSpeech: Bool {
         !dictation.isListening && VoiceCoordinator.shared.owner == .speaking
+    }
+
+    /// True when the open microphone is actually picking up sound.
+    private var micHearingSpeech: Bool {
+        dictation.isListening && Double(dictation.level) > Self.speakingLevel
     }
 
     private var micSymbol: String {
@@ -124,14 +136,24 @@ struct TerminalView: View {
     }
 
     private var micLabel: String {
-        if dictation.isListening { return "Microphone on" }
-        return micHeldForSpeech ? "Microphone paused while speaking" : "Microphone muted"
+        if micHearingSpeech { return "Dictating" }
+        if dictation.isListening { return "Listening" }
+        return micHeldForSpeech ? "Paused while speaking" : "Microphone muted"
     }
 
-    /// Green listening, orange deaf-while-speaking, red muted by him.
+    /// Green hearing him, blue armed and quiet, yellow held by the app, red muted by him.
     private var micTint: Color {
-        if dictation.isListening { return .green }
-        return micHeldForSpeech ? .orange : .red
+        if micHearingSpeech { return .green }
+        if dictation.isListening { return .blue }
+        return micHeldForSpeech ? .yellow : .red
+    }
+
+    /// The wiggle. It scales with the live audio level, so the icon moves while he talks
+    /// and sits still while it does not — which is the whole point of a level meter that
+    /// is one glyph wide.
+    private var micScale: CGFloat {
+        guard dictation.isListening else { return 1 }
+        return 1 + min(CGFloat(dictation.level) * 2.2, 0.45)
     }
 
     /// The composer's focus. The ONLY @FocusState in the app.
@@ -286,6 +308,8 @@ struct TerminalView: View {
                         }
                     } label: {
                         Label(micLabel, systemImage: micSymbol)
+                            .scaleEffect(micScale)
+                            .animation(.easeOut(duration: 0.12), value: micScale)
                     }
                     .tint(micTint)
                 }
