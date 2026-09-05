@@ -481,7 +481,15 @@ struct TerminalView: View {
                 Button {
                     showingPhotoPicker = true
                 } label: {
-                    Label("Photo or screenshot", systemImage: "photo.on.rectangle")
+                    // ⚠️ NAMES THE SOURCE, NOT THE CONTENT. It read "Photo or
+                    // screenshot", and he caught what that implies: "screenshot implies
+                    // that is a screenshot button." Every other item in this menu is an
+                    // action the app performs — take a picture, scan a document — so a
+                    // noun sitting among them gets read as one too.
+                    //
+                    // "Photo roll" is where it looks, which is the only thing this item
+                    // does differently from the others.
+                    Label("Photo roll", systemImage: "photo.on.rectangle")
                 }
                 #if os(iOS)
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
