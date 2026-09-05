@@ -216,7 +216,7 @@ actor SSHSession {
     /// The buffer name is deliberately odd so it can never clobber one he is using
     /// himself, and `-d` deletes it the moment it has been pasted. The Enter that submits
     /// stays a separate, deliberate key.
-    func sendToSession(_ text: String, session sessionName: String, tag: String, stamped shouldStamp: Bool) async throws {
+    func sendToSession(_ text: String, session sessionName: String, tag: String, stamped shouldStamp: Bool, spoken: Bool = false) async throws {
         guard client != nil else { throw SSHError.notConnected }
         let tmux = try await tmuxExecutable()
         let session = Self.shellQuoted(sessionName)
@@ -238,7 +238,20 @@ actor SSHSession {
         // "hand my typing to a long-running program", and that program might be a build,
         // a REPL or a game server that wants the bytes exactly as typed. A prefix it did
         // not ask for is corruption, not metadata.
-        let stamped = shouldStamp ? "[\(Self.sentStamp()) \(tag)] \(text)" : text
+        // ⚠️ "HF" MARKS A DICTATED MESSAGE, AND SILENCE MEANS TYPED. His rule,
+        // 2026-09-05: "HF or no other, assume always typed unless the HF tag."
+        //
+        // Choosing absence as the default is what makes it safe: every message already
+        // sent, and every message from a build without this, is correctly read as typed.
+        // A scheme that needed both markers would have retroactively made the whole
+        // history ambiguous.
+        //
+        // ⚠️ IT IS NOT A LABEL, IT IS A READING INSTRUCTION. A dictated line carries
+        // transcription errors and a typed one does not. Without this the far end either
+        // over-reads a mis-transcription as intent or second-guesses something he
+        // actually typed — both happened repeatedly on 2026-09-05.
+        let source = spoken ? "\(tag) HF" : tag
+        let stamped = shouldStamp ? "[\(Self.sentStamp()) \(source)] \(text)" : text
         let body = Self.shellQuoted(stamped)
         let buffer = "shell-citadel-msg"
         _ = try await run("""

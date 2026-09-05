@@ -442,7 +442,12 @@ struct TerminalView: View {
             dictation.registerWithCoordinator()
             dictation.onUtterance = { text in
                 input = text
-                Task { await send() }
+                // ⚠️ MARKS THIS SEND AS SPOKEN. His idea, 2026-09-05: the tag should say
+                // whether a message was dictated or typed — "HF or no other, assume always
+                // typed unless the HF tag." It is not cosmetic: a dictated line carries
+                // transcription errors and a typed one does not, so the far end needs to
+                // know which kind of scrutiny to apply to the words it just received.
+                Task { await send(wasDictated: true) }
             }
             dictation.onCancelled = {
                 input = ""
@@ -882,7 +887,10 @@ struct TerminalView: View {
         transcriptBeforeDemo = []
     }
 
-    private func send() async {
+    /// `wasDictated` is true only when the text arrived from dictation. Everything else —
+    /// the return key, the send button, a pasted line — is typed, which is why the
+    /// default is false and the tag says nothing at all in that case.
+    private func send(wasDictated: Bool = false) async {
         let command = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !command.isEmpty else { return }
         input = ""
@@ -940,7 +948,7 @@ struct TerminalView: View {
         // there is no output to wait for here, and waiting would look like a hang.
         if connection.mode == .tmux {
             do {
-                try await session.sendToSession(command, session: connection.tmuxSession, tag: Self.sourceTag, stamped: connection.stampMessages)
+                try await session.sendToSession(command, session: connection.tmuxSession, tag: Self.sourceTag, stamped: connection.stampMessages, spoken: wasDictated)
                 // ⚠️ ONLY IN ATTACH MODE. In Direct mode the answer comes back on the
                 // same call and the wait is already over by the time this line runs.
                 light.didSend()
