@@ -39,6 +39,7 @@ struct TerminalView: View {
     @State private var isBusy = false
     @State private var showingConnection = false
     @State private var showingEditor = false
+    @State private var showingPassword = false
     @State private var showingAbout = false
     @State private var showingSettings = false
     @State private var light = LinkLight()
@@ -277,6 +278,12 @@ struct TerminalView: View {
                         password = ""
                         showingEditor = true
                     })
+            }
+            .sheet(isPresented: $showingPassword) {
+                PasswordFirst(connection: connection) { typed in
+                    password = typed
+                    Task { await toggleConnection() }
+                }
             }
             .sheet(isPresented: $showingEditor) {
                 NavigationStack {
@@ -733,7 +740,12 @@ struct TerminalView: View {
             connection.mode = .shell
             transcript.append(.init(kind: .status,
                                     text: "Ready to connect to \(parsed.host). The password is the only thing missing."))
-            showingConnection = true
+            // ⚠️ THE PASSWORD SHEET, NOT THE CONNECTIONS LIST. This read
+            // `showingConnection = true`, which was right until the phone button was
+            // changed to open the list — after which a typed ssh line dropped him into a
+            // list of OTHER connections. His report: "it did not operate as expected."
+            // A regression I made and did not follow through.
+            showingPassword = true
             return
         }
 
