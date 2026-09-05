@@ -117,8 +117,8 @@ final class SyncedSettings {
         // moment he does look at it, whose words are whose has to be answerable without
         // reading them.
         static let lightBackground = "#FFFFFF"
-        static let lightYou = "#3A3A3A"
-        static let lightThem = "#3A3A3A"
+        static let lightYou = "#6E6E6E"
+        static let lightThem = "#6E6E6E"
         static let darkBackground = "#0E120E"
         static let darkYou = "#2E8B57"
         static let darkThem = "#8FE8A8"

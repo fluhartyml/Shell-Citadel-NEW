@@ -69,15 +69,19 @@ enum HexColor {
         let (_, _, bgBrightness) = hsb(background)
         let backgroundIsDark = bgBrightness < 0.5
 
-        // His: the colour he chose, floored and capped only enough to stay legible.
+        // ⚠️ THE GAP HAS TO BE WIDE ENOUGH TO SEE. The first attempt kept both shades in
+        // the bottom third on white and he said so at once: "i think were the same shade
+        // if black." Two colours that differ on paper and not on screen are one colour.
+        //
+        // His: pulled toward the background so it recedes.
+        // Mine: pushed away from it so it carries the eye.
         let yoursBrightness = backgroundIsDark
-            ? max(0.34, b * 0.75)          // never so dark it vanishes into black
-            : min(0.62, max(b, 0.22))      // never so light it vanishes into white
+            ? max(0.34, min(b, 0.55))      // quieter than mine, never lost in black
+            : min(0.58, max(b, 0.42))      // a clear mid grey on white, not near-black
 
-        // Mine: the same hue, moved away from the background so it stands out.
         let theirsBrightness = backgroundIsDark
-            ? min(0.97, max(b, 0.55) * 1.45)
-            : max(0.10, min(b, 0.34) * 0.55)
+            ? min(0.97, max(b, 0.62) * 1.45)
+            : max(0.04, min(b, 0.22) * 0.35)
 
         let yours = Color(hue: h, saturation: sat, brightness: yoursBrightness)
         let theirs = Color(hue: h, saturation: sat * 0.9, brightness: theirsBrightness)
