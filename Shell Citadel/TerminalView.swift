@@ -280,7 +280,8 @@ struct TerminalView: View {
                     })
             }
             .sheet(isPresented: $showingPassword) {
-                PasswordFirst(connection: connection) { typed in
+                PasswordFirst(connection: connection) { chosen, typed in
+                    connection = chosen
                     password = typed
                     Task { await toggleConnection() }
                 }

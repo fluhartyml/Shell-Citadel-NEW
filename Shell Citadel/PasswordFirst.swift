@@ -32,8 +32,21 @@ import SwiftUI
 struct PasswordFirst: View {
     @Environment(\.dismiss) private var dismiss
 
-    let connection: Connection
-    let onConnect: (String) -> Void
+    let onConnect: (Connection, String) -> Void
+
+    /// ⚠️ EDITABLE HERE, NOT JUST DISPLAYED. He asked for the mode on this screen:
+    /// "under the password it should also provide direct attach to session tabs."
+    ///
+    /// A typed ssh line can only ever mean Direct — nothing in `ssh user@host` names a
+    /// session — but Attach is what he actually wants most of the time, and making him
+    /// connect first and then go and change it means connecting twice. So the one thing
+    /// the typed line could not carry is offered right where the password is.
+    @State private var connection: Connection
+
+    init(connection: Connection, onConnect: @escaping (Connection, String) -> Void) {
+        _connection = State(initialValue: connection)
+        self.onConnect = onConnect
+    }
 
     @State private var password = ""
     @FocusState private var passwordFocused: Bool
@@ -70,6 +83,48 @@ struct PasswordFirst: View {
                     Text("Kept in this device's Keychain \u{2014} never in iCloud, never in a backup.")
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                Section {
+                    Picker("Mode", selection: $connection.mode) {
+                        ForEach(Connection.Mode.allCases, id: \.self) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    // ⚠️ ONLY THE CHOSEN MODE'S SETTINGS APPEAR, the same rule as the
+                    // editor. A field that cannot apply to the mode you are in is a
+                    // field you have to read and dismiss.
+                    if connection.mode == .tmux {
+                        TextField("Session", text: $connection.tmuxSession, prompt: Text("main"))
+                            .autocorrectionDisabled()
+                            #if os(iOS)
+                            .textInputAutocapitalization(.never)
+                            #endif
+                        TextField("Replies file", text: $connection.replyPath, prompt: Text("~/session-output.txt"))
+                            .autocorrectionDisabled()
+                            #if os(iOS)
+                            .textInputAutocapitalization(.never)
+                            #endif
+                    }
+                } header: {
+                    HStack {
+                        Text("Mode")
+                        MoreInfo(
+                            title: "the two modes",
+                            detail: """
+                            Direct: type a command, the machine answers.
+
+                            Attach to session: what you type is handed to a program \
+                            already running in a tmux session, and its replies are read \
+                            from a file that program writes.
+
+                            A typed ssh line always starts as Direct, because nothing in \
+                            it names a session.
+                            """
+                        )
+                    }
+                }
             }
             .formStyle(.grouped)
             // ⚠️ THE TITLE IS THE MACHINE, WHICH IS WHAT HE ASKED FOR — the card he is
@@ -94,7 +149,7 @@ struct PasswordFirst: View {
 
     private func go() {
         guard !password.isEmpty else { return }
-        onConnect(password)
+        onConnect(connection, password)
         dismiss()
     }
 }
