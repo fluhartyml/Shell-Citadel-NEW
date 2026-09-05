@@ -94,8 +94,19 @@ final class SyncedSettings {
         // device in his hand — which is the honest answer, since a phone was never going
         // to show 80 columns of readable text and used to claim it did.
         static let fontSize = 13.0
-        /// Empty means the system monospaced face.
-        static let fontName = ""
+        /// ⚠️ THE APP SHIPS ITS OWN TYPEFACE AND THIS IS IT. His decision 2026-09-05:
+        /// "nerd font is to be default shipped and user can change it." Empty string
+        /// still means the system monospaced face, and is what this falls back to if the
+        /// bundled font ever fails to register — see BundledFont.swift, which answers
+        /// that question rather than assuming it.
+        ///
+        /// This is not his personal setup leaking into the app: the font ships in the
+        /// binary, so every user gets it, and every user can change it in Settings.
+        /// → the "apps ship agnostic" rule is about his hostnames and sessions, not
+        ///   about a typeface the app carries for everyone.
+        static var fontName: String {
+            BundledFont.isAvailable ? BundledFont.familyName : ""
+        }
         // ⚠️ HIS SPEC, 2026-09-04: "for the default to be in light mode a light
         // background with black text, and for dark mode i wanted a dark green for my text
         // and a lighter green for your text."
