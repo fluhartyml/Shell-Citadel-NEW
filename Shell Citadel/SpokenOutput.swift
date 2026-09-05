@@ -17,8 +17,21 @@
 //  spent an afternoon on 2026-08-31 trying to reach one specific voice — do not let a
 //  future session tell him this file delivers it.
 //
-//  ⚠️ NO VOICE OVERRIDE. Use whatever voice the system is set to. His standing rule,
-//  after correcting it twice: the voice is his choice in OS settings, not the app's.
+//  ⚠️ THE VOICE IS PER CONNECTION, AND THE SYSTEM VOICE IS THE DEFAULT — NOT THE RULE.
+//
+//  This file used to say "NO VOICE OVERRIDE. Use whatever voice the system is set to,"
+//  which was his standing rule from the Mac `say` days after correcting it twice. It was
+//  superseded on 2026-09-04 by his own design: "the connection card should have tts voice
+//  selecters", and a voice per connection so he can hear which tab is talking.
+//
+//  ⚠️ THE OLD SENTENCE OUTLIVED THE RULE AND COST A DAY OF SILENCE. It sat above a
+//  `speakInternal` that quietly refused to set the voice, so build 66 could thread the
+//  per-connection voice all the way through and still produce the system voice. He found
+//  it from the outside on 2026-09-05: "Arthur selected but the selected voice is not
+//  being used."
+//
+//  What survives of the old rule, and is still true: nil means the system voice, and nil
+//  is the default. He is never given a voice he did not choose.
 //
 //  ⚠️ OFF BY DEFAULT. A terminal that starts talking the first time it is opened, in
 //  whatever room it was opened in, is a bad surprise. And it is PER-DEVICE — whether the
@@ -209,7 +222,35 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         #endif
 
         let utterance = AVSpeechUtterance(string: trimmed)
-        // No voice is set, on purpose. See the note at the top of this file.
+
+        // ⚠️ THE VOICE IS APPLIED HERE, AND UNTIL 2026-09-05 IT WAS NOT.
+        //
+        // `speak(_:voice:)` resolved the connection's voice, handed it to this method,
+        // and this method built the utterance without it — under a comment saying no
+        // voice was set on purpose. That comment was true of the old rule (never
+        // override his system voice) and was left in place when build 66 threaded the
+        // per-connection voice through. The parameter was accepted, passed, and dropped.
+        //
+        // He caught it from the outside, which is the only way it could be caught:
+        // "my iphone has Arthur selected but the selected voice is not being used."
+        // Nothing failed, nothing warned, and the app spoke in the system voice while
+        // the card displayed his choice.
+        //
+        // Same shape as the hands-free preamble the night before: produced, then
+        // consumed by nobody. Worth remembering as a class of bug rather than two bugs.
+        if let voiceIdentifier {
+            if let voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier) {
+                utterance.voice = voice
+            } else {
+                // ⚠️ SAY SO RATHER THAN FALL BACK IN SILENCE. An identifier that no
+                // longer resolves — a voice deleted, or a connection synced from a device
+                // that has one this device does not — is exactly the case that made the
+                // picker look broken instead of unavailable.
+                Diagnostics.shared.failed(.app, "voice unavailable, using the system voice: \(voiceIdentifier)")
+                lastProblem = "That voice is not installed on this device. It can be added in Settings \u{203A} Accessibility \u{203A} Spoken Content \u{203A} Voices."
+            }
+        }
+
         isSpeaking = true
         synthesizer.speak(utterance)
     }
