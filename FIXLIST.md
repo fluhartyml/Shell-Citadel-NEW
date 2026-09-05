@@ -63,3 +63,13 @@ catcher called `becomeFirstResponder()` on every redraw, and the indicator ticke
 second to cause the redraws. Chunk 0.2 replaced both with one rule: the composer is the
 only view that ever takes the keyboard. **These two stay gone** — and unlike everything
 above, that is a decision, made because of what it cost.
+
+## 🔨 Built 2026-09-05 — not yet seen working
+
+| # | Status | Screen | What changed |
+|---|--------|--------|--------------|
+| 47 | 🔨 | Appearance | **The Size slider drives columns and lines.** His rule, given at 06:45 after being asked twice: *"it scales the font sizes bigger or smaller making the (height) lines and (width) colums increase or decrease."* So the size is the only stored geometry value and the counts are read off the layout, using the real character cell of the chosen face rather than the old `columns × size × 0.6` guess. The arrows on Columns and Lines run the opposite way and move the slider. **`Lines` is live again** — it was greyed out while a line count meant a PTY grid; under his rule it means how many lines fit down the screen, which the layout can answer today. Item 31 (the real PTY) is still owed, and is no longer what this control waits on. |
+
+⚠️ **Found on the way and fixed in the same build:** the size, the font and all six colours
+were written **up** to iCloud and never read back **down** — `pullFromCloud` read only the
+pause. The file claimed all of them followed him between devices; one of them did.

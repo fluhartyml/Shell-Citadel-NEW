@@ -36,6 +36,13 @@
 import Foundation
 import Observation
 
+// Only to ask whether a font name resolves on THIS device before taking it from iCloud.
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
+
 // ✅ LIVE as of 2026-09-04. The iCloud capability with Key-value storage is on the App
 // ID — Michael added it in Xcode's Signing & Capabilities while I walked him through it,
 // one step at a time. It could not be done from a command line and was not worked around.
@@ -50,8 +57,16 @@ final class SyncedSettings {
 
     private enum Key {
         static let pauseSeconds = "dictation.pauseSeconds"
-        static let columns = "terminal.columns"
-        static let lines = "terminal.lines"
+        // ⚠️ `terminal.columns` AND `terminal.lines` USED TO LIVE HERE AND DELIBERATELY
+        // DO NOT ANY MORE. Michael, 2026-09-05: the size is what scales, and "the
+        // (height) lines and (width) colums increase or decrease" as a result of it.
+        // A stored count would be a second source of truth for a number the layout
+        // already decides, and the two would disagree the first time a phone rotated.
+        // They are computed now — TerminalMetrics.swift.
+        //
+        // Old values left behind in iCloud and UserDefaults are simply never read. They
+        // are harmless, and deleting a key is not something to do to another device's
+        // store on its behalf.
         static let fontSize = "terminal.fontSize"
         static let fontName = "terminal.fontName"
         static let lightBackground = "terminal.light.background"
@@ -74,8 +89,10 @@ final class SyncedSettings {
     /// everyone else as a recommendation. So: the system monospaced face, the system
     /// text and background colours, and a terminal's traditional 80 by 24.
     enum Default {
-        static let columns = 80
-        static let lines = 24
+        // ⚠️ 80 COLUMNS BY 24 LINES IS NO LONGER A DEFAULT, BECAUSE IT IS NO LONGER A
+        // SETTING. The traditional terminal shape is now whatever 13 pt produces on the
+        // device in his hand — which is the honest answer, since a phone was never going
+        // to show 80 columns of readable text and used to claim it did.
         static let fontSize = 13.0
         /// Empty means the system monospaced face.
         static let fontName = ""
@@ -113,8 +130,10 @@ final class SyncedSettings {
     // color". That is not a visual preference — it is the actual shape of the data, and
     // a screen laid out against it would invite setting a column count "for dark mode".
 
-    var columns: Int { didSet { store(columns, Key.columns, "columns -> \(columns)") } }
-    var lines: Int { didSet { store(lines, Key.lines, "lines -> \(lines)") } }
+    /// ⚠️ THE ONLY GEOMETRY VALUE THERE IS. Columns and lines are read off the layout at
+    /// this size — see TerminalMetrics.swift — so this is the one number that has to be
+    /// stored, and the one that has to travel: how big text needs to be is a fact about
+    /// his eyes, not about the screen he happens to be holding.
     var fontSize: Double { didSet { store(fontSize, Key.fontSize, "font size -> \(fontSize)") } }
     var fontName: String { didSet { store(fontName, Key.fontName, "font -> \(fontName)") } }
     var lightBackground: String { didSet { store(lightBackground, Key.lightBackground, "light bg -> \(lightBackground)") } }
@@ -126,8 +145,6 @@ final class SyncedSettings {
 
     /// Put everything on this screen back to the shipped values.
     func resetAppearance() {
-        columns = Default.columns
-        lines = Default.lines
         fontSize = Default.fontSize
         fontName = Default.fontName
         lightBackground = Default.lightBackground
@@ -150,10 +167,6 @@ final class SyncedSettings {
         let stored = local.double(forKey: Key.pauseSeconds)
         pauseSeconds = stored > 0 ? stored : 1.5
 
-        let c = local.integer(forKey: Key.columns)
-        columns = c > 0 ? c : Default.columns
-        let l = local.integer(forKey: Key.lines)
-        lines = l > 0 ? l : Default.lines
         let fs = local.double(forKey: Key.fontSize)
         fontSize = fs > 0 ? fs : Default.fontSize
         fontName = local.string(forKey: Key.fontName) ?? Default.fontName
@@ -177,10 +190,60 @@ final class SyncedSettings {
 
     /// Takes the cloud's value when it has one. Deliberately quiet: a device that has
     /// never synced keeps whatever it had rather than being reset to a default.
+    ///
+    /// ⚠️ EVERY SYNCED VALUE IS PULLED, NOT JUST THE PAUSE. Until 2026-09-05 this method
+    /// read `pauseSeconds` alone, while the writer sent all eleven — so the size, the
+    /// face and the colours went **up** to iCloud and never came **down**. The file said
+    /// they follow him between devices; only one of them did. A preference that syncs in
+    /// one direction is worse than one that does not sync at all, because the screen
+    /// still claims it worked.
     private func pullFromCloud() {
-        let remote = cloud.double(forKey: Key.pauseSeconds)
-        guard remote > 0, remote != pauseSeconds else { return }
-        pauseSeconds = remote
-        Diagnostics.shared.record(.app, "pause synced from another device -> \(remote)s")
+        let pause = cloud.double(forKey: Key.pauseSeconds)
+        if pause > 0, pause != pauseSeconds {
+            pauseSeconds = pause
+            Diagnostics.shared.record(.app, "pause synced from another device -> \(pause)s")
+        }
+
+        let size = cloud.double(forKey: Key.fontSize)
+        if size > 0, size != fontSize {
+            fontSize = size
+            Diagnostics.shared.record(.app, "font size synced from another device -> \(size)")
+        }
+
+        // A face is only worth taking if this device actually has it installed —
+        // otherwise the picker would show the name of a font that cannot be drawn, and
+        // the terminal would quietly fall back to the system one. The empty string is
+        // the system monospaced face and is always available.
+        if let name = cloud.string(forKey: Key.fontName), name != fontName,
+           name.isEmpty || Self.monospacedFontExists(name) {
+            fontName = name
+            Diagnostics.shared.record(.app, "font synced from another device -> \(name.isEmpty ? "system" : name)")
+        }
+
+        for (key, apply) in colourPullers {
+            guard let hex = cloud.string(forKey: key) else { continue }
+            apply(hex)
+        }
+    }
+
+    /// Paired so a colour cannot be pulled into the wrong slot by a copy-paste — the key
+    /// and the property it belongs to are written once, together.
+    private var colourPullers: [(String, (String) -> Void)] {
+        [
+            (Key.lightBackground, { if $0 != self.lightBackground { self.lightBackground = $0 } }),
+            (Key.lightYou, { if $0 != self.lightYou { self.lightYou = $0 } }),
+            (Key.lightThem, { if $0 != self.lightThem { self.lightThem = $0 } }),
+            (Key.darkBackground, { if $0 != self.darkBackground { self.darkBackground = $0 } }),
+            (Key.darkYou, { if $0 != self.darkYou { self.darkYou = $0 } }),
+            (Key.darkThem, { if $0 != self.darkThem { self.darkThem = $0 } }),
+        ]
+    }
+
+    private static func monospacedFontExists(_ name: String) -> Bool {
+        #if canImport(UIKit)
+        UIFont(name: name, size: 12) != nil
+        #else
+        NSFont(name: name, size: 12) != nil
+        #endif
     }
 }

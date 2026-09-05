@@ -101,6 +101,39 @@ struct SettingsView: View {
     @State private var tab: ColourTab = .light
     @State private var spoken = SpokenOutput.shared
     @StateObject private var dictation = Dictation.shared
+    /// What the terminal is actually being drawn into on this device, so the column and
+    /// line counts describe his screen rather than a nominal one.
+    @State private var geometry = TerminalGeometry.shared
+
+    // MARK: - Consequences of the size
+    //
+    // ⚠️ COMPUTED EVERY TIME, NEVER CACHED. The window can be dragged and a phone can be
+    // rotated while this sheet is open; a stored count would go stale on screen while he
+    // watched it.
+
+    private var fittedColumns: Int {
+        TerminalMetrics.columns(
+            across: geometry.viewport.width,
+            fontName: settings.fontName,
+            size: settings.fontSize
+        )
+    }
+
+    private var fittedLines: Int {
+        TerminalMetrics.lines(
+            down: geometry.viewport.height,
+            fontName: settings.fontName,
+            size: settings.fontSize
+        )
+    }
+
+    /// One point bigger or smaller, stopping at the ends of the slider rather than
+    /// wrapping or silently doing nothing.
+    private func nudgeSize(by delta: Double) {
+        let next = TerminalMetrics.clamp(settings.fontSize + delta)
+        guard next != settings.fontSize else { return }
+        settings.fontSize = next
+    }
 
     var body: some View {
         NavigationStack {
@@ -163,27 +196,54 @@ struct SettingsView: View {
                 // APPEARANCE — geometry above, colour inside the tabs. His layout.
                 // ─────────────────────────────────────────────────────────────────
                 Section {
-                    Stepper(value: $settings.columns, in: 20...300, step: 1) {
-                        LabeledContent("Columns") { Text("\(settings.columns)").monospacedDigit() }
-                    }
-                    // ⚠️ DISABLED AND SAYS WHY, RATHER THAN PRETENDING.
+                    // ⚠️ THESE TWO ARE READOUTS THAT CAN BE PUSHED, NOT SETTINGS.
                     //
-                    // A line count needs a character grid to count lines of, and this
-                    // transcript is a flowing list — it will mean something when the real
-                    // PTY lands (fix list 31) and not before. He caught it doing nothing:
-                    // "the lines and colums dont appear to work."
+                    // His rule, 2026-09-05: "it scales the font sizes bigger or smaller
+                    // making the (height) lines and (width) colums increase or decrease."
+                    // So the size is the only stored value, and these show what it buys
+                    // on the screen actually in front of him.
                     //
-                    // Greyed out with a reason beats a stepper that moves a number nothing
-                    // reads. The first teaches; the second is the false green this whole
-                    // rebuild exists to stop producing.
-                    Stepper(value: $settings.lines, in: 5...200, step: 1) {
-                        LabeledContent("Lines") { Text("\(settings.lines)").monospacedDigit() }
+                    // The arrows still work, and they run BACKWARDS on purpose — more
+                    // columns means smaller type, which is the same sentence read the
+                    // other way. That is also his second requirement: "changing those
+                    // numbers changes the slider position."
+                    //
+                    // ⚠️ AND `LINES` IS LIVE AGAIN. It was greyed out with "there is
+                    // nothing yet for it to count", which was true while a line count
+                    // meant a PTY grid. Under his rule it means how many lines fit down
+                    // the screen at this size, and the layout can answer that today. The
+                    // real PTY (fix list 31) is still owed; it is no longer what this
+                    // control is waiting on.
+                    if geometry.isMeasured {
+                        Stepper {
+                            LabeledContent("Columns") {
+                                Text("\(fittedColumns)").monospacedDigit()
+                            }
+                        } onIncrement: {
+                            nudgeSize(by: -1)
+                        } onDecrement: {
+                            nudgeSize(by: +1)
+                        }
+                        Stepper {
+                            LabeledContent("Lines") {
+                                Text("\(fittedLines)").monospacedDigit()
+                            }
+                        } onIncrement: {
+                            nudgeSize(by: -1)
+                        } onDecrement: {
+                            nudgeSize(by: +1)
+                        }
+                    } else {
+                        // ⚠️ NO NUMBER RATHER THAN A MADE-UP ONE. Before the terminal has
+                        // been laid out once there is nothing to divide, and printing 80
+                        // here would be a claim about a screen nobody has measured.
+                        LabeledContent("Columns") { Text("\u{2014}") }
+                        LabeledContent("Lines") { Text("\u{2014}") }
+                        Text("Counted once the terminal has been on screen.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .disabled(true)
-                    Text("Lines waits on the real terminal grid \u{2014} there is nothing yet for it to count.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                     // ⚠️ A SLIDER HERE, A STEPPER FOR THE PAUSE, AND THE DIFFERENCE IS
                     // REAL. Type size is judged by looking at it, so dragging while
                     // watching is the right gesture. The sending pause is judged by
@@ -192,7 +252,11 @@ struct SettingsView: View {
                         LabeledContent("Size") {
                             Text(String(format: "%.0f pt", settings.fontSize)).monospacedDigit()
                         }
-                        Slider(value: $settings.fontSize, in: 8...32, step: 1)
+                        Slider(
+                            value: $settings.fontSize,
+                            in: TerminalMetrics.minSize...TerminalMetrics.maxSize,
+                            step: 1
+                        )
                     }
                     Picker("Font", selection: $settings.fontName) {
                         Text("System monospaced").tag("")
@@ -206,9 +270,20 @@ struct SettingsView: View {
                         MoreInfo(
                             title: "size and shape",
                             detail: """
-                            Columns, lines and size are the same whichever appearance you \
-                            are in, so they sit above the tabs. Only the two colours \
-                            change between Light and Dark.
+                            Size is the setting. Columns and lines are what that size \
+                            fits on this screen, so they move the opposite way \u{2014} \
+                            larger type, fewer of both.
+
+                            Their arrows work too, and they change the size, which is \
+                            why the slider moves with them.
+
+                            The count is for the screen you are on. The same size gives \
+                            a phone and a Mac very different numbers, so only the size \
+                            follows you between devices.
+
+                            Size is the same whichever appearance you are in, so it sits \
+                            above the tabs. Only the two colours change between Light \
+                            and Dark.
 
                             The font list is every monospaced face installed on this \
                             device \u{2014} read from the device, so what you have \

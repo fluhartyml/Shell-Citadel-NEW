@@ -433,6 +433,20 @@ struct TerminalView: View {
 
     // MARK: - Pieces
 
+    /// The padding around the transcript text, named once so the measurement below and
+    /// the layout above cannot drift apart.
+    private static let transcriptInsets = (horizontal: 16.0, top: 8.0)
+
+    /// Hands the usable text area to whoever is counting characters — Settings, today.
+    private func reportViewport(_ size: CGSize) {
+        TerminalGeometry.shared.report(
+            CGSize(
+                width: max(0, size.width - Self.transcriptInsets.horizontal * 2),
+                height: max(0, size.height - Self.transcriptInsets.top)
+            )
+        )
+    }
+
     private var transcriptView: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -451,20 +465,36 @@ struct TerminalView: View {
                             .id(line.id)
                     }
                 }
-                .padding(.horizontal)
-                .padding(.top, 8)
-                // ⚠️ COLUMNS NOW MEAN SOMETHING. They were a stepper wired to nothing —
-                // "the lines and colums dont appear to work" — because this transcript is
-                // a flowing list, not a character grid, so there was no grid to size.
+                .padding(.horizontal, Self.transcriptInsets.horizontal)
+                .padding(.top, Self.transcriptInsets.top)
+                // ⚠️ THE WRAP WIDTH IS THE SCREEN NOW, AND THAT IS THE WHOLE CHANGE.
                 //
-                // What a column count HONESTLY means here is where the text wraps, which
-                // is the thing a person actually sees when they change it. A monospaced
-                // character is about 0.6 of its point size wide, so N columns is that
-                // times N. On a narrow phone the screen still wins.
-                .frame(maxWidth: CGFloat(settings.columns) * settings.fontSize * 0.6, alignment: .leading)
+                // This used to be `columns × size × 0.6` — a stored column count times a
+                // guess at how wide a monospaced character is. Michael's rule of
+                // 2026-09-05 turns that around: the SIZE is what he sets, and the column
+                // count is however many fit. So there is nothing left to constrain here;
+                // the text uses the width it has, and Settings reports what that came to.
+                //
+                // Removing this frame is what makes the number in Settings true. Leaving
+                // it would have meant a readout of a width the text was not using.
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(HexColor.color(scheme == .dark ? settings.darkBackground : settings.lightBackground))
+            // ⚠️ THIS IS WHERE THE COLUMN AND LINE COUNTS COME FROM. Settings divides
+            // this by the size of one character — so it must be the area text is really
+            // drawn into, with the padding taken off, or the numbers would be generous
+            // by two characters and one line.
+            //
+            // Measured rather than assumed, and re-measured on every layout: a window
+            // drag, a rotation and the keyboard appearing all change it while the
+            // Settings sheet may be open reading it.
+            .background(
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear { reportViewport(proxy.size) }
+                        .onChange(of: proxy.size) { _, new in reportViewport(new) }
+                }
+            )
             .onChange(of: transcript.count) { _, _ in
                 if let last = transcript.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }
             }
