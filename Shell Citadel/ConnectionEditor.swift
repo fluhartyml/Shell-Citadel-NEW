@@ -142,22 +142,27 @@ struct ConnectionEditor: View {
                     MoreInfo(
                         title: "signing in",
                         detail: """
-                        Account: lowercase letters, digits, hyphen, underscore and \
-                        period. No spaces, and it cannot start with a hyphen.
+                        Account: letters, digits, hyphen, underscore and period. No \
+                        spaces, and it cannot start with a hyphen.
 
-                        Both are CASE SENSITIVE. The account is the short name, not the \
-                        full name shown on the login screen.
+                        Use the short account name, not the full name shown on a login \
+                        screen. On a Mac its capitals do not matter; on Linux they do, \
+                        so what you type is kept exactly.
 
-                        The password is kept in this device's Keychain \u{2014} never in \
-                        iCloud, never in a backup.
+                        The PASSWORD is always case sensitive.
+
+                        It is kept in this device's Keychain \u{2014} never in iCloud, \
+                        never in a backup.
                         """
                     )
                 }
             } footer: {
-                // ⚠️ THE ONE THING WORTH A LINE OF ITS OWN. Case sensitivity is what cost
-                // him an afternoon: `MichaelFluharty` versus `michaelfluharty` produced
-                // `allAuthenticationOptionsFailed`, which the app reported as "error 4".
-                Text("Both are case sensitive.")
+                // ⚠️ CORRECTED 2026-09-04. This read "Both are case sensitive", which is
+                // wrong about the account and was my mis-diagnosis of his afternoon: the
+                // failure was a dropped letter in `michaelfuharty`, not the capitals in
+                // `MichaelFluharty`. macOS resolves accounts case-insensitively —
+                // verified against the live directory, not recalled.
+                Text("The password is case sensitive.")
             }
 
             if let remembered = connection.lastKnownAddress {

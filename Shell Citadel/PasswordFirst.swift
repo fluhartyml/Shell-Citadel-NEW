@@ -15,11 +15,15 @@
 //  one thing missing and nothing else.
 //
 //  ⚠️ IT SHOWS THE ACCOUNT AND HOST RATHER THAN HIDING THEM, AND THAT IS THE SECOND JOB
-//  OF THIS SCREEN. He typed `MichaelFluharty` with two capitals; his Mac's account is
-//  `michaelfluharty`, all lowercase, and SSH is case sensitive — that exact mistake cost
-//  him an afternoon today and surfaced only as "SSHClientError 4". Printing the account
-//  back to him in a monospaced face, before he commits, is the cheapest possible place to
-//  catch it.
+//  OF THIS SCREEN. What cost him an afternoon was a DROPPED LETTER — `michaelfuharty`,
+//  missing the l — reported to him only as "SSHClientError 4". A missing character is
+//  invisible in a password-shaped field and nearly invisible in a long line of typing;
+//  printing the account back in a monospaced face, before he commits, is the cheapest
+//  possible place to catch it.
+//
+//  ⚠️ NOT because of capitals. I told him on 2026-09-04 that `MichaelFluharty` was the
+//  problem, and he was right to doubt it: macOS resolves accounts case-insensitively, so
+//  that form works. Verified against the live directory rather than recalled.
 //
 //  ⛔ NO .textContentType HERE. The old app's password-first editor used
 //  .textContentType(.password), which is half of the AutoFill pair that took the caret
@@ -71,7 +75,7 @@ struct PasswordFirst: View {
                 } header: {
                     Text("Connecting to")
                 } footer: {
-                    Text("Taken from what you typed. The account is case sensitive.")
+                    Text("Taken from what you typed, with anything an account or host name cannot contain removed.")
                         .fixedSize(horizontal: false, vertical: true)
                 }
 

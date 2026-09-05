@@ -156,10 +156,23 @@ struct Connection: Codable, Identifiable, Equatable, Sendable {
     ///
     /// He is describing SSH's own asymmetry, correctly:
     ///
-    ///  • THE ACCOUNT IS CASE SENSITIVE. `MichaelFluharty` and `michaelfluharty` are
-    ///    different accounts to sshd, and only one of them exists. So the case he typed
-    ///    is preserved exactly — lowercasing it "to be helpful" would silently change
-    ///    which account is being asked for on a machine that has a capitalised one.
+    ///  • THE ACCOUNT'S CASE IS PRESERVED, THOUGH NOT FOR THE REASON THIS FILE FIRST
+    ///    CLAIMED. I wrote that `MichaelFluharty` and `michaelfluharty` were different
+    ///    accounts and that only one existed. He pushed back — "i thought M F always
+    ///    worked, its just passwords that are case sensitive" — and he was right.
+    ///    Checked against the live directory on 2026-09-04: `dscl . -read
+    ///    /Users/MichaelFluharty` RESOLVES, because macOS looks accounts up
+    ///    case-insensitively. A missing letter does not resolve, and that — a dropped
+    ///    `l` in `michaelfuharty` — was the actual failure I had blamed on capitals.
+    ///
+    ///    The case is still preserved, for a reason that does survive: the far end is
+    ///    often NOT a Mac. Linux accounts really are case sensitive, and this app is
+    ///    deliberately agnostic about what it connects to. Preserving what he typed is
+    ///    correct everywhere; lowercasing it would be correct only where it does not
+    ///    matter.
+    ///
+    ///    His rule for what this function is actually for: the account "just cant
+    ///    contain illegal characters, space bar is one."
     ///
     ///  • THE HOST IS NOT. DNS and mDNS are case insensitive, so `My-Mac.local` and
     ///    `my-mac.local` are the same machine. Lowercasing removes a difference that
