@@ -21,11 +21,21 @@ import SwiftUI
 
 struct ConnectionCards: View {
     let connections: [Connection]
+
+    /// The connection the tab underneath is already using, if any.
+    ///
+    /// ⚠️ IT ANSWERS "WHERE AM I?" BEFORE HE HAS TO GUESS. His recollection of the old
+    /// app, 2026-09-04: "if you were in a tab and you tapped the connections it had a
+    /// 'this tab' indicator." Without it every card looks equally available, including
+    /// the one he is already sitting in — and picking that one would offer to replace a
+    /// session with itself.
+    var currentID: Connection.ID? = nil
     let onPick: (Connection) -> Void
     let onNew: () -> Void
     /// nil where editing does not belong — the start page just opens things.
     var onEdit: ((Connection) -> Void)? = nil
     var onDelete: ((Connection) -> Void)? = nil
+
 
     private let columns = [GridItem(.adaptive(minimum: 210), spacing: 12)]
 
@@ -80,9 +90,20 @@ struct ConnectionCards: View {
                     .clipShape(Capsule())
             }
 
-            Text(connection.title)
-                .font(.headline)
-                .lineLimit(1)
+            HStack(spacing: 6) {
+                Text(connection.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                if connection.id == currentID {
+                    Text("This tab")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.tint.opacity(0.18))
+                        .foregroundStyle(.tint)
+                        .clipShape(Capsule())
+                }
+            }
 
             // ⚠️ ACCOUNT AND HOST, BECAUSE THOSE ARE WHAT GET PROOFREAD. He asked for
             // failed connections to be kept precisely so a typo could be found by
@@ -97,6 +118,12 @@ struct ConnectionCards: View {
         .padding(12)
         .background(.quaternary.opacity(0.35))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+        // A ring rather than a fill, so the card he is in reads as marked rather than
+        // as a different kind of thing.
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(connection.id == currentID ? AnyShapeStyle(.tint) : AnyShapeStyle(.clear), lineWidth: 2)
+        )
     }
 
     private var empty: some View {

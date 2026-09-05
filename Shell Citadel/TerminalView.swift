@@ -159,6 +159,7 @@ struct TerminalView: View {
                 if tab.isFresh && !isConnected && transcript.isEmpty {
                     ConnectionCards(
                         connections: store.connections,
+                        currentID: isConnected ? connection.id : nil,
                         onPick: { picked in
                             // ⚠️ ONLY ASKS WHEN THERE IS SOMETHING TO LOSE. On a fresh
                             // tab there is no live session, so picking a card simply
@@ -260,6 +261,7 @@ struct TerminalView: View {
                 ConnectionSheet(
                     store: store,
                     isConnected: isConnected,
+                    currentID: isConnected || !tab.isFresh ? connection.id : nil,
                     onPick: { picked in
                         connection = picked
                         password = CredentialStore.password(for: picked) ?? ""

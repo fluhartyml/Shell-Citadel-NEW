@@ -26,6 +26,8 @@ struct ConnectionSheet: View {
     let store: ConnectionStore
     /// Whether the tab underneath already has a live session.
     let isConnected: Bool
+    /// What the tab underneath is using, so its card can say so.
+    let currentID: Connection.ID?
     let onPick: (Connection) -> Void
     let onEdit: (Connection) -> Void
     let onNew: () -> Void
@@ -36,7 +38,15 @@ struct ConnectionSheet: View {
         NavigationStack {
             ConnectionCards(
                 connections: store.connections,
+                currentID: currentID,
                 onPick: { picked in
+                    // ⚠️ PICKING THE CARD HE IS ALREADY ON IS NOT A REPLACEMENT. Without
+                    // this it would offer to disconnect a session in order to open the
+                    // same session, which is a prompt with no good answer.
+                    if picked.id == currentID {
+                        dismiss()
+                        return
+                    }
                     // ⚠️ ASKS ONLY WHEN THERE IS SOMETHING TO LOSE.
                     //
                     // His design put the + on the tab row, and that is what made this
