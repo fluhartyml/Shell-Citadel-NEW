@@ -81,6 +81,25 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
     /// matters.
     private var pending = 0
 
+    /// The floor under `pending`.
+    ///
+    /// ⚠️ EVERY RELEASE OF THE MICROPHONE HANGS OFF ONE COUNTER REACHING ZERO, AND A
+    /// COUNTER THAT ONLY GOES UP WHEN SOMETHING GOES WRONG IS A LATCH. Build 84 fixes the
+    /// one cause we found — a refused audio session — but the shape of the failure is
+    /// worse than the cause: ANY utterance that never reaches a delegate deafens the app
+    /// permanently, and a mute cannot clear it because `didStopListening` only resets an
+    /// owner of `.listening`, never `.speaking`. A force-quit was the sole recovery.
+    ///
+    /// So this does not trust the diagnosis. It asks the synthesiser directly: if work is
+    /// outstanding and nothing is being spoken, the queue died, and the microphone is
+    /// handed back regardless of why.
+    ///
+    /// ⚠️ TWO CONSECUTIVE OBSERVATIONS, NOT ONE, and that is deliberate. Reopening the mic
+    /// while a reply is still being read out is the echo loop of 2026-08-31 and 2026-09-04
+    /// — the app hearing itself and sending its own words back as his. A watchdog that is
+    /// too eager recreates the worse bug, so it must be certain before it acts.
+    private var watchdog: Task<Void, Never>?
+
     /// Set when a chosen voice could not be used, so the interface can say why.
     private(set) var lastProblem: String?
 
@@ -175,11 +194,19 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         // which is the half-duplex rule the whole audio design rests on.
         VoiceCoordinator.shared.willSpeak()
         #if os(iOS)
-        armAudioSession()
+        // ⛔ GIVE THE MICROPHONE BACK RATHER THAN HOLD IT FOR SPEECH THAT CANNOT HAPPEN.
+        // `willSpeak()` has already closed the mic. If the session was refused there is
+        // nothing to wait for, and waiting is what latched it shut.
+        guard armAudioSession() else {
+            lastProblem = "The audio could not be started, so nothing was spoken. Another app or a phone call may be holding it."
+            VoiceCoordinator.shared.didFinishSpeaking()
+            return
+        }
         #endif
         isSpeaking = true
         pending += 1
         synthesizer.speak(utterance)
+        armWatchdog()
     }
 
     func preview(voiceIdentifier: String?) {
@@ -200,11 +227,19 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         // composer as something he said.
         VoiceCoordinator.shared.willSpeak()
         #if os(iOS)
-        armAudioSession()
+        // ⛔ GIVE THE MICROPHONE BACK RATHER THAN HOLD IT FOR SPEECH THAT CANNOT HAPPEN.
+        // `willSpeak()` has already closed the mic. If the session was refused there is
+        // nothing to wait for, and waiting is what latched it shut.
+        guard armAudioSession() else {
+            lastProblem = "The audio could not be started, so nothing was spoken. Another app or a phone call may be holding it."
+            VoiceCoordinator.shared.didFinishSpeaking()
+            return
+        }
         #endif
         isSpeaking = true
         pending += 1
         synthesizer.speak(utterance)
+        armWatchdog()
     }
 
     /// Say a line in a particular connection's voice.
@@ -231,7 +266,13 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         #if os(iOS)
         // Duck other audio rather than stopping it, and mix, so a podcast or a call is
         // interrupted rather than killed.
-        armAudioSession()
+        //
+        // ⛔ AND IF IT IS REFUSED, STOP HERE. See `announce`.
+        guard armAudioSession() else {
+            lastProblem = "The audio could not be started, so nothing was spoken. Another app or a phone call may be holding it."
+            VoiceCoordinator.shared.didFinishSpeaking()
+            return
+        }
         #endif
 
         let utterance = AVSpeechUtterance(string: trimmed)
@@ -267,9 +308,12 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         isSpeaking = true
         pending += 1
         synthesizer.speak(utterance)
+        armWatchdog()
     }
 
     func stop() {
+        watchdog?.cancel()
+        watchdog = nil
         synthesizer.stopSpeaking(at: .immediate)
         pending = 0
         isSpeaking = false
@@ -285,8 +329,10 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
     // silent app looked like an unexplained mystery on 2026-09-01 and again today.
 
     #if os(iOS)
-    /// Arms the session for speech. Records rather than hides a refusal.
-    private func armAudioSession() {
+    /// Arms the session for speech. Records rather than hides a refusal, and now
+    /// REPORTS it, because recording a refusal the caller cannot see was half a fix.
+    @discardableResult
+    private func armAudioSession() -> Bool {
         let session = AVAudioSession.sharedInstance()
         do {
             // Duck other audio rather than stopping it, and mix, so a podcast or a call
@@ -301,8 +347,16 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
             // ⚠️ THIS IS THE ONE THAT MATTERS. If activation is refused, the utterance is
             // handed to the synthesiser and goes nowhere — no error, no sound, and the
             // interface showing "speaking".
+            //
+            // ⚠️ AND UNTIL BUILD 84 IT ALSO DEAFENED THE APP FOR GOOD. The utterance never
+            // reached the synthesiser, so no delegate ever fired, so `pending` never came
+            // back to zero, so the coordinator was never told speech had ended and the
+            // microphone could never reopen. 2026-09-05: the mic badge sat yellow and
+            // three taps of unmute only added to a count that could not come down.
             Diagnostics.shared.failed(.app, "audio session activation failed \u{2014} speech will be silent: \(error.localizedDescription)")
+            return false
         }
+        return true
     }
 
     /// Hands the audio back to whatever else wanted it.
@@ -314,6 +368,41 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
     #endif
+
+    // MARK: - The watchdog
+
+    /// Started every time something is handed to the synthesiser; cancelled the moment the
+    /// queue drains honestly.
+    private func armWatchdog() {
+        watchdog?.cancel()
+        watchdog = Task { [weak self] in
+            var stalled = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled, let self else { return }
+                guard self.pending > 0 else { return }
+
+                if self.synthesizer.isSpeaking {
+                    stalled = 0
+                    continue
+                }
+
+                // Nothing is being spoken and work is still outstanding. Once could be the
+                // gap before the queue starts; twice is a queue that is never coming back.
+                stalled += 1
+                guard stalled >= 2 else { continue }
+
+                Diagnostics.shared.failed(.app, "speech queue stalled with \(self.pending) unfinished \u{2014} returning the microphone")
+                self.pending = 0
+                self.isSpeaking = false
+                VoiceCoordinator.shared.didFinishSpeaking()
+                #if os(iOS)
+                self.releaseAudioSession()
+                #endif
+                return
+            }
+        }
+    }
 
     // MARK: - AVSpeechSynthesizerDelegate
 
@@ -329,6 +418,8 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
             pending = max(0, pending - 1)
             guard pending == 0 else { return }
 
+            watchdog?.cancel()
+            watchdog = nil
             isSpeaking = false
             VoiceCoordinator.shared.didFinishSpeaking()
             #if os(iOS)
@@ -344,6 +435,8 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
             // and the microphone stays shut for good.
             pending = max(0, pending - 1)
             guard pending == 0 else { return }
+            watchdog?.cancel()
+            watchdog = nil
             isSpeaking = false
             VoiceCoordinator.shared.didFinishSpeaking()
         }
