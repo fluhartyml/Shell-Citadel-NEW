@@ -534,6 +534,12 @@ struct TerminalView: View {
                 transcript.append(.init(kind: .status, text: "First time connecting to this machine \u{2014} its key has been recorded."))
             }
             transcript.append(.init(kind: .status, text: "Connected."))
+            // ⚠️ HAND THE CONNECTION'S VOICE TO THE SPEAKER. Without this line the
+            // picker on the connection sheet was a dead control — it stored a choice
+            // nothing ever read, which is the same false green as a settings screen that
+            // changes nothing. The voice is the tab's identity when he is listening from
+            // another room; a stored identity nobody uses is not an identity.
+            spoken.voiceIdentifier = connection.voiceIdentifier
             light.start(pinging: session)
             composerFocused = true
             if connection.mode == .tmux { startFollowingReplies() }
