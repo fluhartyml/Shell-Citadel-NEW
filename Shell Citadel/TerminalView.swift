@@ -724,7 +724,34 @@ struct TerminalView: View {
                 .font(terminalFont)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-                .autocorrectionDisabled()
+                // ⚠️ NO `.autocorrectionDisabled()` HERE, AND ITS ABSENCE IS THE FEATURE.
+                //
+                // Michael, 2026-09-07: "now add spell check and suggestive text" — and
+                // from 2026-09-06: "we need to get the predictive tect and spellchecking
+                // back on shell citadel next", then immediately "well not autocorrect
+                // because i turn that off in settings."
+                //
+                // That reads like three switches and in UIKit it is nearly one.
+                // `.autocorrectionDisabled()` sets `autocorrectionType = .no`, which does
+                // not merely stop corrections — it takes the QuickType predictions and the
+                // spell-check underlines with it. One modifier was switching off all three
+                // of the things he asked about, which is why they vanished together in the
+                // rebuild from an empty project.
+                //
+                // ⭐ THE ANSWER IS TO SET NOTHING. Left at `.default`, the field DEFERS TO
+                // THE DEVICE: Settings > General > Keyboard > Auto-Correction. He has that
+                // off, so he gets no autocorrect — because HE turned it off, not because
+                // this app decided for him — while spell check and predictions come back.
+                //
+                // ⚠️ AND IT IS THE AGNOSTIC CHOICE, NOT A SETTING TUNED TO HIS PHONE.
+                // Anyone who wants autocorrect in a terminal composer gets it; anyone who
+                // does not, does not. Hard-coding either answer would be this app
+                // overruling the keyboard preference its user already stated once.
+                //
+                // ⛔ THE OTHER FIELDS KEEP THEIR `.autocorrectionDisabled()`. Hostnames,
+                // account names and passwords are not prose, and a correction there is
+                // silent corruption — the missing `l` in michaelfuharty cost him an
+                // afternoon, and that was a typo nobody helped him make.
                 #if os(iOS)
                 .textInputAutocapitalization(.never)
                 #endif
