@@ -388,6 +388,23 @@ final class Dictation: ObservableObject {
         return cancelPhrases.contains { t == $0 || t.hasSuffix(" " + $0) }
     }
 
+    /// Throw away what was heard and close the microphone. The push-to-talk escape.
+    ///
+    /// ⚠️ THE COUNTERPART TO `finishNow`, AND IT MUST EXIST SEPARATELY. Stopping and
+    /// delivering are one act in this file; here they have to come apart, because the
+    /// whole point is a microphone that closes with nothing sent.
+    ///
+    /// It reports through `onCancelled` so the transcript says "Scratched." — the same
+    /// acknowledgement a spoken cancel phrase gets. A cancel that leaves no trace is
+    /// indistinguishable from a microphone that failed.
+    func abandon() {
+        guard isListening else { return }
+        silenceTimer?.invalidate()
+        silenceTimer = nil
+        stop(silent: true)
+        onCancelled?()
+    }
+
     /// Deliver whatever has been heard so far and close the microphone. Push-to-talk.
     ///
     /// ⚠️ `stop()` ALONE WOULD THROW THE SENTENCE AWAY. It calls `teardown()`, which

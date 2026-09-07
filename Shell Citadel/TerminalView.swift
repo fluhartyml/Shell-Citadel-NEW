@@ -42,6 +42,22 @@ struct TerminalView: View {
 
     /// True while his finger is down on the push-to-talk bar.
     @State private var pttHeld = false
+
+    /// True while the finger has slid far enough DOWN that releasing will cancel.
+    ///
+    /// His gesture, 2026-09-07: *"can the PTT have a pull mouse away cancel action
+    /// equivilant?"* → *"like swipe down release?"* — the voice-message idiom, and the
+    /// direction is his. Down suits a bar at the bottom of the screen: it reads as
+    /// dropping the sentence rather than sending it, and a downward slide that starts in
+    /// the middle of a 200pt bar never reaches the home indicator.
+    @State private var pttWillCancel = false
+
+    /// How far down counts as "let go of this one".
+    ///
+    /// ⚠️ FAR ENOUGH TO BE DELIBERATE. A short travel would cancel sentences he meant to
+    /// send, every time his thumb drifted while talking — which is the worst possible
+    /// failure here, because the words are already gone and he has to say them again.
+    private static let pttCancelDistance: CGFloat = 70
     @State private var input = ""
     @State private var isConnected = false
     @State private var isBusy = false
@@ -761,6 +777,26 @@ struct TerminalView: View {
         }
     }
 
+    private var pttIcon: String {
+        if pttWillCancel { return "xmark.circle.fill" }
+        return pttHeld ? "waveform" : "mic.fill"
+    }
+
+    private var pttTitle: String {
+        if pttWillCancel { return "Release to cancel" }
+        return pttHeld ? "Listening \u{2014} let go to send" : "Hold to talk"
+    }
+
+    private var pttBackground: Color {
+        if pttWillCancel { return .red.opacity(0.22) }
+        return pttHeld ? .green.opacity(0.22) : .secondary.opacity(0.12)
+    }
+
+    private var pttTint: Color {
+        if pttWillCancel { return .red }
+        return pttHeld ? .green : .primary
+    }
+
     /// The hold-to-talk bar, in the space the keyboard would occupy.
     ///
     /// ⚠️ HIS OBSERVATION IS WHAT MADE THE SIZE POSSIBLE. 2026-09-07: *"the 14 has screen
@@ -782,13 +818,21 @@ struct TerminalView: View {
             // nothing at all. There was never a reason for it: nothing here fires on tap.
             // A plain view plus `contentShape` is the whole hit target.
             VStack(spacing: 6) {
-                    Image(systemName: pttHeld ? "waveform" : "mic.fill")
+                    Image(systemName: pttIcon)
                         .font(.system(size: 34, weight: .semibold))
-                    Text(pttHeld ? "Listening \u{2014} let go to send" : "Hold to talk")
+                    Text(pttTitle)
                         .font(.headline)
+                    // ⚠️ THE ESCAPE HAS TO BE DISCOVERABLE WHILE HE IS HOLDING. Nobody
+                    // guesses a swipe-down cancel, and a gesture that is only in the
+                    // release notes is a gesture nobody has.
+                    if pttHeld, !pttWillCancel {
+                        Text("Slide down to cancel")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     // What it heard, while he is still holding. Without it he has no way
                     // to tell a mic that is not hearing him from one that is.
-                    if pttHeld, !dictation.partial.isEmpty {
+                    if pttHeld, !pttWillCancel, !dictation.partial.isEmpty {
                         Text(dictation.partial)
                             .font(.callout)
                             .foregroundStyle(.secondary)
@@ -801,40 +845,55 @@ struct TerminalView: View {
             // Without this the gaps between the label and the text are not part of the
             // target, and a 200pt bar becomes a few thin strips of glyph.
             .contentShape(Rectangle())
-            .background(pttHeld ? Color.green.opacity(0.22) : Color.secondary.opacity(0.12))
-            .foregroundStyle(pttHeld ? Color.green : Color.primary)
+            .background(pttBackground)
+            .foregroundStyle(pttTint)
+            .animation(.easeOut(duration: 0.12), value: pttWillCancel)
             // ⚠️ A DRAG GESTURE WITH ZERO MINIMUM, NOT A BUTTON ACTION. A Button fires on
             // RELEASE, which is the wrong end of a press-and-hold — the microphone has to
             // open when the finger lands. `minimumDistance: 0` makes touch-down the event.
             .gesture(
                 DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        // onChanged fires repeatedly while held; only the first matters.
-                        guard !pttHeld else { return }
-                        pttHeld = true
-                        VoiceCoordinator.shared.willListen()
-                        // Silent: the bar turning green says it better than a spoken
-                        // announcement, and an announcement would close the microphone it
-                        // just opened in order to make it. See Dictation.start(announce:).
-                        dictation.start(announce: false)
+                    .onChanged { value in
+                        if !pttHeld {
+                            pttHeld = true
+                            VoiceCoordinator.shared.willListen()
+                            // Silent: the bar turning green says it better than a spoken
+                            // announcement, and an announcement would close the microphone
+                            // it just opened in order to make it.
+                            dictation.start(announce: false)
+                        }
+                        // Tracked on every change, so the bar can say what releasing will
+                        // do BEFORE he does it. Sliding back up puts it in the send state
+                        // again — the decision is never locked in until he lets go.
+                        pttWillCancel = value.translation.height > Self.pttCancelDistance
                     }
                     .onEnded { _ in
                         guard pttHeld else { return }
                         pttHeld = false
-                        // Releasing IS the end of the sentence — see Dictation.finishNow,
-                        // which delivers what was heard instead of waiting for a silence
-                        // that has already been decided by his finger.
-                        dictation.finishNow()
+                        if pttWillCancel {
+                            dictation.abandon()
+                        } else {
+                            // Releasing IS the end of the sentence — finishNow delivers
+                            // what was heard rather than waiting for a silence his finger
+                            // has already decided.
+                            dictation.finishNow()
+                        }
+                        pttWillCancel = false
                         VoiceCoordinator.shared.didStopListening()
                     }
             )
             // ⚠️ A FINGER SLIDING OFF MUST NOT LEAVE THE MICROPHONE OPEN. If the view
             // goes away mid-hold — he taps the composer, the sheet opens, the app
             // backgrounds — the gesture never ends, so the close happens here too.
+            // ⚠️ AN INTERRUPTED HOLD CANCELS, IT DOES NOT SEND. If the bar goes away
+            // mid-hold — the app backgrounds, a sheet opens, he taps the composer — the
+            // gesture never ends. Sending a half-sentence he was still speaking into a
+            // live shell is the worse of the two failures, so this abandons.
             .onDisappear {
                 guard pttHeld else { return }
                 pttHeld = false
-                dictation.finishNow()
+                pttWillCancel = false
+                dictation.abandon()
                 VoiceCoordinator.shared.didStopListening()
             }
         }
