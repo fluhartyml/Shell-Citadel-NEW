@@ -47,6 +47,9 @@ struct TerminalView: View {
     @State private var replyTask: Task<Void, Never>?
     @State private var replyOffset = 0
 
+    /// ⚠️ THE CONNECTION DOES NOT SURVIVE A LOCKED SCREEN. See `standDownForBackground()`.
+    @Environment(\.scenePhase) private var scenePhase
+
     // ⚠️ THE DEMO IS A REJECTION GUARD. See DemoMode.swift.
     @State private var isDemo = false
     @State private var demoTask: Task<Void, Never>?
@@ -412,6 +415,38 @@ struct TerminalView: View {
                     Diagnostics.shared.record(.app, "tab dormant \u{00B7} \(tab.title)")
                 }
             }
+            // ⚠️ WHEN THE SCREEN LOCKS, LET THE CONNECTION GO ON PURPOSE.
+            //
+            // Michael, 2026-09-07: "it harns when i lock my screen relocate in my home
+            // and unlock my iphone. i habe to swipe ip to exit relaunch and tap connect."
+            //
+            // Locking the screen backgrounds the app and iOS suspends it; moving through
+            // the house hands him to a different access point. Either one kills the TCP
+            // socket underneath the SSH session, and NOTHING here noticed — `isConnected`
+            // stayed true, so the button offered "Disconnect" over a connection that no
+            // longer existed, while the link light had already gone down. Two answers to
+            // one question, and the one the button trusted was the wrong one.
+            //
+            // Worse than the wrong label: `SSHSession` is an actor, and its `run` reads a
+            // response stream while holding actor isolation. Against a socket that is
+            // gone the read never returns and never throws — so the actor is wedged, and
+            // every later call queues behind it forever, `close()` included. That is why
+            // force-quitting was the only way out.
+            //
+            // So the fix is to stand down BEFORE the suspend, while the socket is still
+            // alive and the actor still answers. Tear it down here and the app comes back
+            // honest: the button says Connect, and one tap works.
+            //
+            // ⛔ `.background` ONLY, never `.inactive`. Pulling down Control Center, the
+            // app switcher and an incoming call banner are all `.inactive`, and dropping
+            // his session for those would be a worse bug than this one.
+            //
+            // ⛔ AND IT DOES NOT RECONNECT BY ITSELF. Coming back on cellular, or in
+            // someone else's house, reconnecting is his decision to make.
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .background, isConnected else { return }
+                Task { await standDownForBackground() }
+            }
             .onChange(of: connection.title) { _, new in tab.title = new }
             .onChange(of: isConnected) { _, live in
                 tab.isConnected = live
@@ -740,6 +775,23 @@ struct TerminalView: View {
             connection = first
             password = CredentialStore.password(for: first) ?? ""
         }
+    }
+
+    /// Gives the connection up while it can still be given up cleanly.
+    ///
+    /// Called as the app goes to the background, which on a locked screen is the last
+    /// moment anything here runs. `markDisconnected()` rather than `close()`: there is
+    /// no far end worth talking to a moment from now, and a polite shutdown would be one
+    /// more thing to hang on.
+    private func standDownForBackground() async {
+        replyTask?.cancel()
+        replyTask = nil
+        light.stop()
+        light.markDown()
+        await session.markDisconnected()
+        isConnected = false
+        transcript.append(.init(kind: .status, text: "Disconnected \u{2014} the screen locked. Tap Connect to pick it back up."))
+        Diagnostics.shared.record(.app, "stood down for background \u{00B7} \(tab.title)")
     }
 
     private func toggleConnection() async {
