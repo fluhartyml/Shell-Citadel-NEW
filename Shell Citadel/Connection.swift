@@ -249,6 +249,48 @@ struct Connection: Codable, Identifiable, Equatable, Sendable {
         return copy
     }
 
+    /// A duplicate of this connection, aimed at a machine that is NOT this one.
+    ///
+    /// Michael, 2026-09-07: "when you long press it allows edit or delet, can it also
+    /// offer copy?" — asked while making a second entry for the same Mac reached by a
+    /// different address, where everything but the host is already right.
+    ///
+    /// ⚠️ THREE THINGS ARE DELIBERATELY *NOT* CARRIED OVER, AND EACH ONE WOULD BE A
+    /// SILENT FAULT IF IT WERE.
+    ///
+    /// 1. **The id.** A copy is a different saved connection, so it needs its own
+    ///    identity — everything keyed by id, the Keychain included, depends on that.
+    ///
+    /// 2. **The password.** His call, and it is the right one: "the pw neeeding to be
+    ///    reentered is a good thing." A copy points somewhere else by definition, so
+    ///    carrying the credential across would plant a password on a host it may not
+    ///    belong to, without anyone deciding to. Retyping it is the gate.
+    ///    ⚠️ But it must read as DELIBERATE, not as loss. The password going missing
+    ///    with nothing on screen saying so is the exact 2026-08-29 bug; see
+    ///    `CredentialStore.account(for:)`. The editor is opened on the copy so the empty
+    ///    field is somewhere he was sent, not something he discovers later.
+    ///
+    /// 3. **`lastKnownAddress`.** The worst of the three to get wrong. It is the
+    ///    fallback used when the host name will not resolve — so a copy that inherited
+    ///    it could fail to resolve its NEW host, quietly fall back to the ORIGINAL
+    ///    machine's address, and connect successfully to the wrong computer. A failure
+    ///    that succeeds is worse than one that stops.
+    ///
+    /// The name gets "copy" appended so the two are told apart in the list at a glance;
+    /// an unnamed connection stays unnamed, because `title` falls back to the host and
+    /// the host is the field he is on his way to change.
+    func copied() -> Connection {
+        var copy = self
+        copy.id = UUID()
+        copy.lastKnownAddress = nil
+
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            copy.name = "\(trimmed) copy"
+        }
+        return copy
+    }
+
     /// What to call this connection anywhere one is listed.
     ///
     /// ⚠️ NEVER EMPTY. With no name the address is the honest label, and with neither

@@ -31,6 +31,8 @@ struct ConnectionSheet: View {
     let onPick: (Connection) -> Void
     let onEdit: (Connection) -> Void
     let onNew: () -> Void
+    /// Hands back the duplicate, unsaved, for the editor. See `Connection.copied()`.
+    let onCopy: (Connection) -> Void
 
     @State private var pendingReplacement: Connection?
 
@@ -63,7 +65,8 @@ struct ConnectionSheet: View {
                 },
                 onNew: { onNew(); dismiss() },
                 onEdit: { onEdit($0); dismiss() },
-                onDelete: { store.remove(id: $0.id) })
+                onDelete: { store.remove(id: $0.id) },
+                onCopy: { onCopy($0); dismiss() })
             .navigationTitle("Connections")
             #if os(macOS)
             .frame(minWidth: 480, idealWidth: 560, minHeight: 380, idealHeight: 460)

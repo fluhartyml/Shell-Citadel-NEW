@@ -35,6 +35,8 @@ struct ConnectionCards: View {
     /// nil where editing does not belong — the start page just opens things.
     var onEdit: ((Connection) -> Void)? = nil
     var onDelete: ((Connection) -> Void)? = nil
+    /// Duplicate this connection and open the copy for editing. See `Connection.copied()`.
+    var onCopy: ((Connection) -> Void)? = nil
 
 
     private let columns = [GridItem(.adaptive(minimum: 210), spacing: 12)]
@@ -60,6 +62,14 @@ struct ConnectionCards: View {
                         .contextMenu {
                             if let onEdit {
                                 Button("Edit\u{2026}") { onEdit(connection) }
+                            }
+                            // ⚠️ COPY SITS BETWEEN THEM, AND THE ORDER IS THE POINT.
+                            // Edit and Copy both open the editor; Delete is the one that
+                            // destroys something. Keeping the two harmless items together
+                            // means the destructive one is never the neighbour of the item
+                            // above it in a list someone is scanning quickly.
+                            if let onCopy {
+                                Button("Copy\u{2026}") { onCopy(connection) }
                             }
                             if let onDelete {
                                 Button("Delete", role: .destructive) { onDelete(connection) }

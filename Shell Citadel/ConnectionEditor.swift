@@ -12,6 +12,18 @@ struct ConnectionEditor: View {
     @Binding var connection: Connection
     @Binding var password: String
 
+    /// True when this is a COPY of another connection, so the password is empty on
+    /// purpose and has to say so.
+    ///
+    /// ⚠️ HIS INSTRUCTION, 2026-09-07: "please reenter your password should be a
+    /// deliberate prompt." An empty field is ambiguous — it looks identical whether the
+    /// password was withheld by design or lost by a bug, and the app has already made
+    /// the second kind once (see `CredentialStore.account(for:)`, 2026-08-29, where a
+    /// credential was orphaned by an edit and nothing on screen said so).
+    ///
+    /// So a copy does not merely arrive blank; it ASKS. Same field, different sentence.
+    var isCopy = false
+
     /// What the Port field is currently showing. See the note at the Port field.
     @State private var portText = "22"
 
@@ -125,7 +137,25 @@ struct ConnectionEditor: View {
                     .textInputAutocapitalization(.never)
                     #endif
 
-                SecureField("Password", text: $password, prompt: Text("Required"))
+                // ⚠️ THE PROMPT IS THE WHOLE POINT ON A COPY. "Required" states a rule;
+                // "Re-enter your password" states what happened and what to do about it.
+                SecureField("Password",
+                            text: $password,
+                            prompt: Text(isCopy ? "Re-enter your password" : "Required"))
+
+                if isCopy {
+                    // ⚠️ WHY IT IS EMPTY, SAID OUT LOUD. His reasoning for not carrying
+                    // the credential across: "the pw neeeding to be reentered is a good
+                    // thing." A copy is aimed at a different machine by definition, so
+                    // inheriting the password would plant a credential on a host nobody
+                    // decided to trust it with.
+                    Label(
+                        "This is a copy, so the password was not carried over. Enter the one for this machine.",
+                        systemImage: "key.fill"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                }
 
                 if connection.username.contains(" ") {
                     Label(

@@ -35,6 +35,10 @@ struct TerminalView: View {
     @State private var connection = Connection()
     @State private var password = ""
     @State private var transcript: [TranscriptLine] = []
+
+    /// Whether the editor currently open is showing a COPY, so the password field can
+    /// say why it is empty. See `ConnectionEditor.isCopy`.
+    @State private var editingIsCopy = false
     @State private var input = ""
     @State private var isConnected = false
     @State private var isBusy = false
@@ -103,6 +107,40 @@ struct TerminalView: View {
 
     /// The bottom of the transcript, for scrolling to. See `transcriptText`.
     private static let transcriptBottomID = "transcript-bottom"
+
+    /// The most transcript lines held at once.
+    ///
+    /// ⛔ THIS EXISTS BECAUSE THE APP CLOSED ON HIM. Michael, 2026-09-07: "the text on
+    /// thr iphone flooded the termina; screen and the app just closed."
+    ///
+    /// Build 89 made the transcript a single `Text` so a selection could cross lines —
+    /// the right fix for the right problem — and gave up `LazyVStack` to do it. One
+    /// `Text` is laid out WHOLE, so an unbounded transcript becomes an unbounded layout,
+    /// and a flood took the app down within twenty minutes of it reaching his phone.
+    ///
+    /// ⚠️ THE COST WAS WRITTEN INTO THE COMMIT AND NOT HANDLED, WHICH IS THE ACTUAL
+    /// FAULT. That commit says: "if it ever bites, the answer is to cap what is held, not
+    /// to go back to islands." It bit. This is that cap, and the lesson is that naming a
+    /// risk in a comment is not the same as containing it.
+    ///
+    /// 1200 lines is far past a readable scrollback and far short of what hurts to lay
+    /// out. The oldest go first, which is the correct end to lose: the bottom is where
+    /// the conversation is.
+    private static let transcriptLimit = 1200
+
+    /// The ONE door every transcript line goes through, so the cap cannot be forgotten
+    /// at one of the twenty-five places that append.
+    ///
+    /// ⚠️ A CAP APPLIED AT THE CALL SITES WOULD BE A CAP WITH TWENTY-FIVE CHANCES TO BE
+    /// MISSED — and the next line added would be the twenty-sixth. Same reasoning as the
+    /// `ConnectionStore.save` normalisation and the post-commit build stamp: put the rule
+    /// in the machinery, not in whoever remembers it next.
+    private func appendTranscript(_ line: TranscriptLine) {
+        transcript.append(line)
+        if transcript.count > Self.transcriptLimit {
+            transcript.removeFirst(transcript.count - Self.transcriptLimit)
+        }
+    }
 
     /// The whole transcript as ONE `Text`, so a selection can run across lines.
     ///
@@ -276,14 +314,26 @@ struct TerminalView: View {
                         onNew: {
                             connection = Connection()
                             password = ""
+                            editingIsCopy = false
                             showingEditor = true
                         },
                         onEdit: { picked in
                             connection = picked
                             password = CredentialStore.password(for: picked) ?? ""
+                            editingIsCopy = false
                             showingEditor = true
                         },
-                        onDelete: { store.remove(id: $0.id) })
+                        onDelete: { store.remove(id: $0.id) },
+                        // ⚠️ THE COPY IS NOT SAVED UNTIL HE CONFIRMS THE EDITOR.
+                        // Writing it to the store here would put a second identical card
+                        // in the list the instant the menu is tapped — and if he backed
+                        // out, it would stay there. The editor's own Save is the one door.
+                        onCopy: { picked in
+                            connection = picked.copied()
+                            password = ""
+                            editingIsCopy = true
+                            showingEditor = true
+                        })
                 } else {
                     transcriptView
                 }
@@ -373,11 +423,19 @@ struct TerminalView: View {
                     onEdit: { picked in
                         connection = picked
                         password = CredentialStore.password(for: picked) ?? ""
+                        editingIsCopy = false
                         showingEditor = true
                     },
                     onNew: {
                         connection = Connection()
                         password = ""
+                        editingIsCopy = false
+                        showingEditor = true
+                    },
+                    onCopy: { picked in
+                        connection = picked.copied()
+                        password = ""
+                        editingIsCopy = true
                         showingEditor = true
                     })
             }
@@ -390,7 +448,7 @@ struct TerminalView: View {
             }
             .sheet(isPresented: $showingEditor) {
                 NavigationStack {
-                    ConnectionEditor(connection: $connection, password: $password)
+                    ConnectionEditor(connection: $connection, password: $password, isCopy: editingIsCopy)
                         // Same reason as About: a Mac sheet sizes to its content and a
                         // Form has no natural size, so it collapses without this.
                         #if os(macOS)
@@ -422,7 +480,7 @@ struct TerminalView: View {
             // audio is gone the moment it is said and a transcript can be scrolled back.
             .onAppear {
                 dictation.onNotice = { sentence in
-                    transcript.append(.init(kind: .status, text: sentence))
+                    appendTranscript(.init(kind: .status, text: sentence))
                     SpokenOutput.shared.announce(sentence)
                 }
             }
@@ -527,14 +585,14 @@ struct TerminalView: View {
                         let position = batch.count > 1 ? " (\(index + 1) of \(batch.count))" : ""
 
                         guard let data = try? await item.loadTransferable(type: Data.self) else {
-                            transcript.append(.init(kind: .failure,
+                            appendTranscript(.init(kind: .failure,
                                                     text: "That picture could not be read\(position)."))
                             continue   // ⚠️ NOT `return` — one bad photo must not silently
                                        // cancel the rest of a batch he selected.
                         }
                         #if os(iOS)
                         guard let image = UIImage(data: data), let jpeg = PhotoSend.prepare(image) else {
-                            transcript.append(.init(kind: .failure,
+                            appendTranscript(.init(kind: .failure,
                                                     text: "That picture could not be prepared\(position)."))
                             continue
                         }
@@ -586,7 +644,7 @@ struct TerminalView: View {
             }
             dictation.onCancelled = {
                 input = ""
-                transcript.append(.init(kind: .status, text: "Scratched."))
+                appendTranscript(.init(kind: .status, text: "Scratched."))
             }
         }
         // What he is saying, shown as it is recognised. Without this the pause is a
@@ -849,7 +907,7 @@ struct TerminalView: View {
             do {
                 let stream = try await session.replyLines(path: connection.replyPath, startingAtByte: replyOffset)
                 for try await chunk in stream {
-                    transcript.append(.init(kind: .output, text: chunk.text))
+                    appendTranscript(.init(kind: .output, text: chunk.text))
                     light.didReceive()
                     replyOffset = chunk.offsetAfter
                     // Speaking it is the point of the mode: he is not looking at the
@@ -859,7 +917,7 @@ struct TerminalView: View {
                 }
             } catch {
                 if !Task.isCancelled {
-                    transcript.append(.init(kind: .failure, text: error.localizedDescription))
+                    appendTranscript(.init(kind: .failure, text: error.localizedDescription))
                 }
             }
         }
@@ -902,7 +960,7 @@ struct TerminalView: View {
         await session.markDisconnected()
         isConnected = false
         resumeOnReturn = true
-        transcript.append(.init(kind: .status, text: "Paused \u{2014} the app went to the background. It will pick up where it left off when you come back."))
+        appendTranscript(.init(kind: .status, text: "Paused \u{2014} the app went to the background. It will pick up where it left off when you come back."))
         Diagnostics.shared.record(.app, "stood down for background \u{00B7} \(tab.title)")
     }
 
@@ -917,7 +975,7 @@ struct TerminalView: View {
             await session.close()
             isConnected = false
             light.markDown()
-            transcript.append(.init(kind: .status, text: "Disconnected."))
+            appendTranscript(.init(kind: .status, text: "Disconnected."))
             return
         }
 
@@ -946,7 +1004,7 @@ struct TerminalView: View {
         connection = connection.normalised()
         store.save(connection)
 
-        transcript.append(.init(kind: .status, text: "Connecting to \(connection.host)\u{2026}"))
+        appendTranscript(.init(kind: .status, text: "Connecting to \(connection.host)\u{2026}"))
         do {
             try await session.connect(to: connection, password: password)
             isConnected = true
@@ -957,14 +1015,14 @@ struct TerminalView: View {
             if let used = await session.addressUsed, used != connection.host {
                 connection.lastKnownAddress = used
                 store.save(connection)
-                transcript.append(.init(kind: .status, text: "Reached it at \(used) \u{2014} the name did not resolve."))
+                appendTranscript(.init(kind: .status, text: "Reached it at \(used) \u{2014} the name did not resolve."))
             } else if let used = await session.addressUsed {
                 connection.lastKnownAddress = used
                 store.save(connection)
             }
 
             if await session.trustedOnFirstUse {
-                transcript.append(.init(kind: .status, text: "First time connecting to this machine \u{2014} its key has been recorded."))
+                appendTranscript(.init(kind: .status, text: "First time connecting to this machine \u{2014} its key has been recorded."))
             }
             // ⚠️ THE PASSWORD IS SAVED HERE, ON SUCCESS, AND IT WAS SAVED NOWHERE ELSE.
             //
@@ -982,7 +1040,7 @@ struct TerminalView: View {
             // no way to tell that from the account being wrong. A password is only worth
             // keeping once the far end has agreed with it.
             _ = CredentialStore.save(password: password, for: connection)
-            transcript.append(.init(kind: .status, text: "Connected."))
+            appendTranscript(.init(kind: .status, text: "Connected."))
             // ⚠️ HAND THE CONNECTION'S VOICE TO THE SPEAKER. Without this line the
             // picker on the connection sheet was a dead control — it stored a choice
             // nothing ever read, which is the same false green as a settings screen that
@@ -1000,7 +1058,7 @@ struct TerminalView: View {
             // ⚠️ A SENTENCE, NOT THE LIBRARY'S ERROR NAME. See Diagnosis.swift — "error 4"
             // stood for three different faults today and never said which.
             let reading = Diagnosis.read(error, connection: connection, hasPassword: !password.isEmpty)
-            transcript.append(.init(kind: .failure, text: reading.sentence))
+            appendTranscript(.init(kind: .failure, text: reading.sentence))
             light.markDown()
 
             // ⚠️ ASK FOR THE PASSWORD RATHER THAN REPORTING ITS ABSENCE. A connection that
@@ -1011,7 +1069,7 @@ struct TerminalView: View {
             if reading.isAuthFailure && password.isEmpty {
                 showingPassword = true
             } else {
-                transcript.append(.init(kind: .status,
+                appendTranscript(.init(kind: .status,
                                         text: "The connection was saved as typed \u{2014} open Connection settings to check it."))
             }
         }
@@ -1026,12 +1084,12 @@ struct TerminalView: View {
         isBusy = true
         defer { isBusy = false }
         let name = PhotoSend.filename()
-        transcript.append(.init(kind: .status, text: "Sending \(name), \(data.count / 1024) KB"))
+        appendTranscript(.init(kind: .status, text: "Sending \(name), \(data.count / 1024) KB"))
         do {
             let path = try await session.upload(data, named: name, toFolder: "Uploads")
-            transcript.append(.init(kind: .output, text: path))
+            appendTranscript(.init(kind: .output, text: path))
         } catch {
-            transcript.append(.init(kind: .failure, text: error.localizedDescription))
+            appendTranscript(.init(kind: .failure, text: error.localizedDescription))
             light.markDown()
         }
         composerFocused = true
@@ -1095,7 +1153,7 @@ struct TerminalView: View {
             for beat in DemoMode.script {
                 try? await Task.sleep(for: .seconds(beat.delay))
                 if Task.isCancelled { return }
-                transcript.append(.init(kind: beat.kind, text: beat.text))
+                appendTranscript(.init(kind: beat.kind, text: beat.text))
             }
             // ⚠️ THE SCRIPT ENDING DOES NOT END THE DEMO. Wiping the transcript the
             // moment the last line lands would take the demonstration away from
@@ -1119,7 +1177,7 @@ struct TerminalView: View {
         let command = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !command.isEmpty else { return }
         input = ""
-        transcript.append(.init(kind: .command, text: "$ \(command)"))
+        appendTranscript(.init(kind: .command, text: "$ \(command)"))
 
         // ⚠️ A TYPED ssh LINE IS A CONNECTION REQUEST, NOT A COMMAND. He typed
         // `ssh account@host` the way he would in any terminal, and the old app answered
@@ -1137,7 +1195,7 @@ struct TerminalView: View {
             connection = connection.normalised()
             // A typed ssh line is always a plain shell — nothing in it names a session.
             connection.mode = .shell
-            transcript.append(.init(kind: .status,
+            appendTranscript(.init(kind: .status,
                                     text: "Ready to connect to \(parsed.host). The password is the only thing missing."))
             // ⚠️ THE PASSWORD SHEET, NOT THE CONNECTIONS LIST. This read
             // `showingConnection = true`, which was right until the phone button was
@@ -1153,7 +1211,7 @@ struct TerminalView: View {
         // to send them, and a command that simply disappears is the failure this app was
         // rebuilt to stop making.
         if !isConnected && !isDemo {
-            transcript.append(.init(kind: .status,
+            appendTranscript(.init(kind: .status,
                                     text: "Not connected, so that went nowhere. Type ssh user@server.local to connect, or open Connection settings."))
             return
         }
@@ -1163,7 +1221,7 @@ struct TerminalView: View {
         // reads as a hung app \u{2014} which is the exact impression this mode exists to
         // disprove.
         if isDemo {
-            transcript.append(.init(kind: .status, text: DemoMode.reply(to: command)))
+            appendTranscript(.init(kind: .status, text: DemoMode.reply(to: command)))
             return
         }
         isBusy = true
@@ -1178,7 +1236,7 @@ struct TerminalView: View {
                 // same call and the wait is already over by the time this line runs.
                 light.didSend()
             } catch {
-                transcript.append(.init(kind: .failure, text: error.localizedDescription))
+                appendTranscript(.init(kind: .failure, text: error.localizedDescription))
             }
             composerFocused = true
             return
@@ -1187,13 +1245,13 @@ struct TerminalView: View {
         do {
             let output = try await session.runTrackingDirectory(command)
             if !output.isEmpty {
-                transcript.append(.init(kind: .output, text: output))
+                appendTranscript(.init(kind: .output, text: output))
                 // Step 3: new output speaks itself the moment it lands, so the loop
                 // closes without him having to ask for each half of it.
                 spoken.speak(output, voice: connection.voiceIdentifier)
             }
         } catch {
-            transcript.append(.init(kind: .failure, text: error.localizedDescription))
+            appendTranscript(.init(kind: .failure, text: error.localizedDescription))
             await session.markDisconnected()
             isConnected = false
         }
