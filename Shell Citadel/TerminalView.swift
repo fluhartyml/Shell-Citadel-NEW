@@ -50,6 +50,10 @@ struct TerminalView: View {
     /// ⚠️ THE CONNECTION DOES NOT SURVIVE A LOCKED SCREEN. See `standDownForBackground()`.
     @Environment(\.scenePhase) private var scenePhase
 
+    /// Set only when the app itself gave the connection up to go to the background, so a
+    /// deliberate Disconnect is never undone by walking back into the room.
+    @State private var resumeOnReturn = false
+
     // ⚠️ THE DEMO IS A REJECTION GUARD. See DemoMode.swift.
     @State private var isDemo = false
     @State private var demoTask: Task<Void, Never>?
@@ -406,6 +410,11 @@ struct TerminalView: View {
                     if isConnected {
                         light.start(pinging: session)
                         if connection.mode == .tmux { startFollowingReplies() }
+                    } else {
+                        // A tab that was not frontmost when he came back stayed down on
+                        // purpose — reconnecting every tab at once would be a stampede.
+                        // It gets its turn when he actually looks at it.
+                        tryResumeAfterReturn()
                     }
                     Diagnostics.shared.record(.app, "tab awake \u{00B7} \(tab.title)")
                 } else {
@@ -444,8 +453,24 @@ struct TerminalView: View {
             // ⛔ AND IT DOES NOT RECONNECT BY ITSELF. Coming back on cellular, or in
             // someone else's house, reconnecting is his decision to make.
             .onChange(of: scenePhase) { _, phase in
-                guard phase == .background, isConnected else { return }
-                Task { await standDownForBackground() }
+                switch phase {
+                case .background:
+                    guard isConnected else { return }
+                    Task { await standDownForBackground() }
+                case .active:
+                    // ⚠️ COMING BACK IS THE OTHER HALF, AND HE ASKED FOR IT BY NAME:
+                    // "reconnect auto and get back to where you left off" (2026-09-07).
+                    // He had just switched to a security camera and come back: "i MUST be
+                    // able to switch apps."
+                    //
+                    // Resuming where he left off costs nothing extra — `replyOffset` has
+                    // always been carried across, and `replyLines(startingAtByte:)` picks
+                    // up from it, so the Mac's file fills the gap in order. What was
+                    // missing was anything that asked it to.
+                    tryResumeAfterReturn()
+                default:
+                    break
+                }
             }
             .onChange(of: connection.title) { _, new in tab.title = new }
             .onChange(of: isConnected) { _, live in
@@ -783,6 +808,22 @@ struct TerminalView: View {
     /// moment anything here runs. `markDisconnected()` rather than `close()`: there is
     /// no far end worth talking to a moment from now, and a polite shutdown would be one
     /// more thing to hang on.
+    /// Reconnects after the app comes back, but only if the app is what gave it up.
+    ///
+    /// ⛔ FOUR GUARDS, AND EVERY ONE OF THEM IS A CASE THAT WOULD BE WRONG TO RECONNECT IN:
+    /// he tapped Disconnect himself · this tab is not the one he is looking at · a
+    /// connection attempt is already running · there is no saved password, so the far end
+    /// would refuse and he would get an error he did not ask for.
+    ///
+    /// ⛔ AND IT DOES NOT RETRY. One attempt; if it fails, the failure sentence stands and
+    /// he decides. A reconnect loop against a Mac that is out of reach — on cellular, in
+    /// someone else's house — would be a battery drain writing the same error over and over.
+    private func tryResumeAfterReturn() {
+        guard resumeOnReturn, !isConnected, tab.isFrontmost, !isBusy, !password.isEmpty else { return }
+        resumeOnReturn = false
+        Task { await toggleConnection(focusComposer: false) }
+    }
+
     private func standDownForBackground() async {
         replyTask?.cancel()
         replyTask = nil
@@ -790,12 +831,17 @@ struct TerminalView: View {
         light.markDown()
         await session.markDisconnected()
         isConnected = false
-        transcript.append(.init(kind: .status, text: "Disconnected \u{2014} the screen locked. Tap Connect to pick it back up."))
+        resumeOnReturn = true
+        transcript.append(.init(kind: .status, text: "Paused \u{2014} the app went to the background. It will pick up where it left off when you come back."))
         Diagnostics.shared.record(.app, "stood down for background \u{00B7} \(tab.title)")
     }
 
-    private func toggleConnection() async {
+    private func toggleConnection(focusComposer: Bool = true) async {
         if isConnected {
+            // ⚠️ HIS OWN DISCONNECT MUST STICK. Without this, backgrounding the app after
+            // tapping Disconnect and returning would reconnect him to a session he had
+            // just closed on purpose.
+            resumeOnReturn = false
             replyTask?.cancel()
             replyTask = nil
             await session.close()
@@ -875,7 +921,10 @@ struct TerminalView: View {
             // The fallback, for anything spoken outside a tab's own output.
             spoken.voiceIdentifier = connection.voiceIdentifier
             light.start(pinging: session)
-            composerFocused = true
+            // ⛔ NOT ON AN AUTOMATIC RECONNECT. Throwing the keyboard up on its own, the
+            // moment he comes back from a security camera, is the app taking the screen
+            // off him for a decision he did not make.
+            if focusComposer { composerFocused = true }
             if connection.mode == .tmux { startFollowingReplies() }
         } catch {
             // ⚠️ A SENTENCE, NOT THE LIBRARY'S ERROR NAME. See Diagnosis.swift — "error 4"
