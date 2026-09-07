@@ -293,10 +293,37 @@ actor SSHSession {
     func replyLines(path rawPath: String, startingAtByte startOffset: Int = 0) async throws -> AsyncThrowingStream<ReplyChunk, Error> {
         guard let client else { throw SSHError.notConnected }
         let path = Self.remotePath(rawPath)
+        // ⛔ THE OFFSET MUST BE AN ABSOLUTE FILE POSITION, AND IT USED TO BE A COUNT.
+        //
+        // Michael, 2026-09-07: "the chat.txt floods shell citadel and then it crashes."
+        //
+        // The old first-connection command was `tail -n 0 -F`, which correctly starts at
+        // the END of the file — but `consumed` still began at 0. So after a couple of
+        // replies the saved offset was ~500 while the true position in a 2.7 MB file was
+        // 2,743,589. Backgrounding and resuming then asked for `tail -c +501`, which
+        // replays the file from byte 500: 37,000 lines delivered as fast as SSH can carry
+        // them. The app went down.
+        //
+        // ⚠️ IT ONLY BIT AFTER A BACKGROUND, WHICH IS WHY IT SURVIVED TESTING. On
+        // 2026-09-07 at 09:23 the resume was clean — nothing had been consumed yet, so
+        // the offset was still 0 and the reconnect started at the end again. The bug
+        // needs one reply to land BEFORE the app is backgrounded.
+        //
+        // ⚠️ AND CAPPING THE TRANSCRIPT DID NOT FIX IT. Build 91 limited what is HELD to
+        // 1200 lines; the flood is what is DELIVERED. The lines still arrive, each one an
+        // append and a scroll animation.
+        //
+        // The fix: the far end reports where the follow actually starts, and that number
+        // seeds the count. On a first connection that is the file's current size; on a
+        // resume it is the offset we were given. One line, printed before any content,
+        // consumed by the reader below and never shown.
+        let startExpr = startOffset > 0 ? "\(startOffset)" : "$(wc -c < \(path) | tr -d ' ')"
         // `tail -c +N` is 1-based: +1 is the whole file, so N is (bytes read) + 1.
-        let follow = startOffset > 0 ? "tail -c +\(startOffset + 1) -F \(path)" : "tail -n 0 -F \(path)"
         let raw = try await client.executeCommandStream(
-            "mkdir -p \"$(dirname \(path))\" && touch \(path) && \(follow)",
+            "mkdir -p \"$(dirname \(path))\" && touch \(path) && "
+                + "__sc_start=\(startExpr); "
+                + "printf '\(Self.offsetSentinel)%s\\n' \"$__sc_start\"; "
+                + "tail -c +$((__sc_start + 1)) -F \(path)",
             inShell: true
         )
 
@@ -309,7 +336,14 @@ actor SSHSession {
                 // The mark only ever advances over COMPLETE lines. Whatever is still in
                 // `pending` when a connection dies is left uncounted on purpose, so that
                 // sentence is re-read whole next time rather than resumed mid-word.
+                //
+                // ⚠️ SEEDED BY THE FAR END, NOT BY `startOffset`. See the command above:
+                // on a first connection `startOffset` is 0 but the follow begins at the
+                // END of the file, and counting up from 0 is what produced the flood.
+                // Until the sentinel arrives nothing is yielded, so a missing or
+                // malformed one cannot silently restart the count from zero.
                 var consumed = startOffset
+                var haveStart = startOffset > 0
                 do {
                     for try await chunk in raw {
                         guard case .stdout(let outBuffer) = chunk else { continue }
@@ -322,8 +356,25 @@ actor SSHSession {
                             // Counted whether or not it is shown: blank separator lines
                             // occupy bytes too, and skipping them in the count would walk
                             // the mark backwards a little on every message.
-                            consumed += line.utf8.count + 1
                             let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+                            // The far end's first line says where the follow began.
+                            if trimmed.hasPrefix(Self.offsetSentinel) {
+                                let digits = trimmed.dropFirst(Self.offsetSentinel.count)
+                                if let start = Int(digits) {
+                                    consumed = start
+                                    haveStart = true
+                                }
+                                continue
+                            }
+
+                            // ⚠️ NOTHING IS SHOWN BEFORE THE MARK IS KNOWN. A line that
+                            // arrives without the sentinel would be counted from a
+                            // position we cannot vouch for, and that is the bug this
+                            // whole block exists to end — so it is dropped, not guessed.
+                            guard haveStart else { continue }
+
+                            consumed += line.utf8.count + 1
                             if !trimmed.isEmpty {
                                 continuation.yield(ReplyChunk(text: trimmed, offsetAfter: consumed))
                             }
@@ -339,6 +390,10 @@ actor SSHSession {
 
     /// Quote a path that may begin with `~`, leaving the tilde outside the quotes so the
     /// remote shell still expands it.
+    /// Marks the far end's report of where the follow actually starts. Deliberately
+    /// unlikely to occur in his conversation, and never shown to him.
+    static let offsetSentinel = "__SC_FOLLOW_AT__"
+
     static func remotePath(_ path: String) -> String {
         if path.hasPrefix("~/") {
             return "~/" + shellQuoted(String(path.dropFirst(2)))
