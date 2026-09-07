@@ -775,8 +775,13 @@ struct TerminalView: View {
     @ViewBuilder
     private var pushToTalkBar: some View {
         if settings.pushToTalk, !composerFocused {
-            Button { } label: {
-                VStack(spacing: 6) {
+            // ⛔ NOT A `Button`, AND IT WAS ONE FOR EXACTLY ONE BUILD. Michael, build 93:
+            // "found it but the glyph is not an actionable button." A Button with an
+            // empty action was used as a container, and its own touch handling swallowed
+            // the DragGesture attached beside it — so the bar drew correctly and did
+            // nothing at all. There was never a reason for it: nothing here fires on tap.
+            // A plain view plus `contentShape` is the whole hit target.
+            VStack(spacing: 6) {
                     Image(systemName: pttHeld ? "waveform" : "mic.fill")
                         .font(.system(size: 34, weight: .semibold))
                     Text(pttHeld ? "Listening \u{2014} let go to send" : "Hold to talk")
@@ -791,11 +796,11 @@ struct TerminalView: View {
                             .padding(.horizontal)
                     }
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 200)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity)
+            .frame(height: 200)
+            // Without this the gaps between the label and the text are not part of the
+            // target, and a 200pt bar becomes a few thin strips of glyph.
+            .contentShape(Rectangle())
             .background(pttHeld ? Color.green.opacity(0.22) : Color.secondary.opacity(0.12))
             .foregroundStyle(pttHeld ? Color.green : Color.primary)
             // ⚠️ A DRAG GESTURE WITH ZERO MINIMUM, NOT A BUTTON ACTION. A Button fires on
