@@ -42,6 +42,39 @@ if [ -z "$PBX" ]; then
 fi
 
 BUILD_NUMBER=$($GIT rev-list --count HEAD 2>/dev/null || echo 1)
+
+# ── THE COUNT CAN REPEAT, SO THE COUNT ALONE IS NOT A NAME ────────────────────────
+#
+# Michael, 2026-09-07: "use 84.2 to resolve conflict in names."
+#
+# `rev-list --count` names the commit only while history moves forward. Discard a build
+# and commit over it — his own Shell Citadel rule, "any edits after we discard back to
+# the current build" — and the NEXT commit lands on the same count as the one thrown
+# away. That happened this morning: the rolled-back 84 and its replacement were both
+# "build 84", which is exactly the confusion the whole standard exists to end.
+#
+# Discarded builds are not deleted here, they are TAGGED (broken-84, stable-83), so the
+# collision is already recorded in the repository and does not need to be remembered.
+# Count the tags that sit at this same commit-count on a DIFFERENT commit; if any do,
+# this is the (k+1)th build to wear the number and it says so: 84 -> 84.2.
+#
+# ⛔ NOT HAND-STAMPED, AND THAT IS THE POINT. A number typed in once "just this once" is
+# the complacency he named. This is derived, so it stays right on its own.
+# CFBundleVersion allows period-separated integers, so 84.2 is valid where a SHA is not.
+HEAD_SHA=$($GIT rev-parse HEAD 2>/dev/null || echo "")
+COLLISIONS=0
+if [ -n "$HEAD_SHA" ]; then
+    for tag in $($GIT tag -l 2>/dev/null); do
+        tag_sha=$($GIT rev-list -n 1 "$tag" 2>/dev/null || echo "")
+        [ -z "$tag_sha" ] && continue
+        [ "$tag_sha" = "$HEAD_SHA" ] && continue
+        tag_count=$($GIT rev-list --count "$tag" 2>/dev/null || echo 0)
+        [ "$tag_count" = "$BUILD_NUMBER" ] && COLLISIONS=$((COLLISIONS + 1))
+    done
+fi
+if [ "$COLLISIONS" -gt 0 ]; then
+    BUILD_NUMBER="${BUILD_NUMBER}.$((COLLISIONS + 1))"
+fi
 COMMIT=$($GIT rev-parse --short HEAD 2>/dev/null || echo "nogit")
 BRANCH=$($GIT rev-parse --abbrev-ref HEAD 2>/dev/null || echo "nogit")
 BUILT=$(date "+%Y-%m-%d %H:%M")
