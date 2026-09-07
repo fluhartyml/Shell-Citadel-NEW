@@ -101,6 +101,27 @@ struct TerminalView: View {
         TerminalAppearance.shared.resolved(system: scheme)
     }
 
+    /// The bottom of the transcript, for scrolling to. See `transcriptText`.
+    private static let transcriptBottomID = "transcript-bottom"
+
+    /// The whole transcript as ONE `Text`, so a selection can run across lines.
+    ///
+    /// Each line keeps its own colour by concatenation — `Text` + `Text` preserves the
+    /// styling of each run — and the newline between them is part of the same string, so
+    /// a copy comes out shaped the way it looked on screen.
+    private var transcriptText: Text {
+        // ⚠️ INDEXED, NOT COMPARED. The first draft asked `built == Text("")` to decide
+        // whether to prepend a newline — leaning on SwiftUI's `Text` equality to answer a
+        // question about position. The index knows it outright and cannot be surprised.
+        transcript.enumerated().reduce(Text("")) { built, pair in
+            // ⚠️ THE APPEARANCE SETTINGS ARE APPLIED HERE, AND IF THEY WERE NOT, THAT
+            // SCREEN WOULD BE A LIE. A settings panel whose controls change nothing is
+            // exactly the false green this rebuild exists to stop making.
+            let run = Text(pair.element.text).foregroundColor(colour(for: pair.element.kind))
+            return pair.offset == 0 ? run : built + Text("\n") + run
+        }
+    }
+
     private func colour(for kind: TranscriptLine.Kind) -> Color {
         let dark = effectiveScheme == .dark
         let pair = HexColor.shades(dark ? settings.darkYou : settings.lightYou,
@@ -601,20 +622,42 @@ struct TerminalView: View {
     private var transcriptView: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 6) {
-                    ForEach(transcript) { line in
-                        Text(line.text)
-                            // ⚠️ THE APPEARANCE SETTINGS ARE APPLIED HERE, AND IF THEY
-                            // WERE NOT, THAT SCREEN WOULD BE A LIE. A settings panel
-                            // whose controls change nothing is exactly the false green
-                            // this rebuild exists to stop making — it reports a state
-                            // the app does not actually have.
-                            .font(terminalFont)
-                            .foregroundStyle(colour(for: line.kind))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                            .id(line.id)
-                    }
+                // ⚠️ ONE `Text`, NOT ONE PER LINE — AND THAT IS THE WHOLE FIX.
+                //
+                // Michael, 2026-09-07: "fix the select across lines." He had tried to
+                // send me what was on his screen and the phone would only let him
+                // highlight a single line: "it was a line but it only let me highlight
+                // 'Paused — the app went to the background...'".
+                //
+                // A selection cannot cross a view boundary. Every line was its own `Text`
+                // with its own `.textSelection(.enabled)`, so every line was its own
+                // island. Nothing was broken — the structure simply made a multi-line
+                // copy impossible, which is exactly the copy he needs, because copying
+                // the screen is how he hands me evidence.
+                //
+                // `Text` + `Text` keeps each run's own colour, so the kinds still read
+                // apart — commands, output, status, failure — while the whole block is a
+                // single selectable stretch.
+                //
+                // ⛔ NOT A `UITextView`. It would give a richer selection and it would
+                // also be FOCUSABLE, and this file's first rule is that the transcript
+                // "does not hold first responder, and it cannot take the caret back off
+                // the field he is typing into. That single sentence is the difference
+                // between this app and the one it replaced."
+                //
+                // ⚠️ THE COST, STATED RATHER THAN DISCOVERED LATER: this gives up
+                // `LazyVStack`. One `Text` is laid out whole, so a very long session
+                // costs more to render than a lazy list did. Acceptable at the size a
+                // conversation reaches; if it ever bites, the answer is to cap what is
+                // held, not to go back to islands.
+                VStack(alignment: .leading, spacing: 6) {
+                    transcriptText
+                        .font(terminalFont)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                    // The scroll target. With one Text there are no per-line ids left to
+                    // aim at, so the bottom is an anchor of its own.
+                    Color.clear.frame(height: 1).id(Self.transcriptBottomID)
                 }
                 .padding(.horizontal, Self.transcriptInsets.horizontal)
                 .padding(.top, Self.transcriptInsets.top)
@@ -651,7 +694,7 @@ struct TerminalView: View {
                 }
             )
             .onChange(of: transcript.count) { _, _ in
-                if let last = transcript.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }
+                withAnimation { proxy.scrollTo(Self.transcriptBottomID, anchor: .bottom) }
             }
         }
     }
