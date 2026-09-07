@@ -39,6 +39,9 @@ struct TerminalView: View {
     /// Whether the editor currently open is showing a COPY, so the password field can
     /// say why it is empty. See `ConnectionEditor.isCopy`.
     @State private var editingIsCopy = false
+
+    /// True while his finger is down on the push-to-talk bar.
+    @State private var pttHeld = false
     @State private var input = ""
     @State private var isConnected = false
     @State private var isBusy = false
@@ -339,6 +342,7 @@ struct TerminalView: View {
                 }
                 Divider()
                 composer
+                pushToTalkBar
             }
             .navigationTitle(connection.name)
             #if os(iOS)
@@ -753,6 +757,80 @@ struct TerminalView: View {
             )
             .onChange(of: transcript.count) { _, _ in
                 withAnimation { proxy.scrollTo(Self.transcriptBottomID, anchor: .bottom) }
+            }
+        }
+    }
+
+    /// The hold-to-talk bar, in the space the keyboard would occupy.
+    ///
+    /// ⚠️ HIS OBSERVATION IS WHAT MADE THE SIZE POSSIBLE. 2026-09-07: *"the 14 has screen
+    /// real estate under the keyboard."* In hands-free there is no keyboard, so its
+    /// footprint is free — and that is exactly where his thumb already goes. A toolbar
+    /// icon would have been the wrong target for a phone on a nightstand, reached for in
+    /// the dark without looking.
+    ///
+    /// ⚠️ ONLY WHEN THE KEYBOARD IS DOWN. If it appeared while he was typing it would
+    /// fight the keyboard for the same region and cover the composer. The moment he taps
+    /// into the text field this goes away, and it returns when he dismisses it.
+    @ViewBuilder
+    private var pushToTalkBar: some View {
+        if settings.pushToTalk, !composerFocused {
+            Button { } label: {
+                VStack(spacing: 6) {
+                    Image(systemName: pttHeld ? "waveform" : "mic.fill")
+                        .font(.system(size: 34, weight: .semibold))
+                    Text(pttHeld ? "Listening \u{2014} let go to send" : "Hold to talk")
+                        .font(.headline)
+                    // What it heard, while he is still holding. Without it he has no way
+                    // to tell a mic that is not hearing him from one that is.
+                    if pttHeld, !dictation.partial.isEmpty {
+                        Text(dictation.partial)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .padding(.horizontal)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 200)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .background(pttHeld ? Color.green.opacity(0.22) : Color.secondary.opacity(0.12))
+            .foregroundStyle(pttHeld ? Color.green : Color.primary)
+            // ⚠️ A DRAG GESTURE WITH ZERO MINIMUM, NOT A BUTTON ACTION. A Button fires on
+            // RELEASE, which is the wrong end of a press-and-hold — the microphone has to
+            // open when the finger lands. `minimumDistance: 0` makes touch-down the event.
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        // onChanged fires repeatedly while held; only the first matters.
+                        guard !pttHeld else { return }
+                        pttHeld = true
+                        VoiceCoordinator.shared.willListen()
+                        // Silent: the bar turning green says it better than a spoken
+                        // announcement, and an announcement would close the microphone it
+                        // just opened in order to make it. See Dictation.start(announce:).
+                        dictation.start(announce: false)
+                    }
+                    .onEnded { _ in
+                        guard pttHeld else { return }
+                        pttHeld = false
+                        // Releasing IS the end of the sentence — see Dictation.finishNow,
+                        // which delivers what was heard instead of waiting for a silence
+                        // that has already been decided by his finger.
+                        dictation.finishNow()
+                        VoiceCoordinator.shared.didStopListening()
+                    }
+            )
+            // ⚠️ A FINGER SLIDING OFF MUST NOT LEAVE THE MICROPHONE OPEN. If the view
+            // goes away mid-hold — he taps the composer, the sheet opens, the app
+            // backgrounds — the gesture never ends, so the close happens here too.
+            .onDisappear {
+                guard pttHeld else { return }
+                pttHeld = false
+                dictation.finishNow()
+                VoiceCoordinator.shared.didStopListening()
             }
         }
     }

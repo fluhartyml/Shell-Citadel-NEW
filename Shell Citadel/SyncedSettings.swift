@@ -57,6 +57,7 @@ final class SyncedSettings {
 
     private enum Key {
         static let pauseSeconds = "dictation.pauseSeconds"
+        static let pushToTalk = "dictation.pushToTalk"
         // ⚠️ `terminal.columns` AND `terminal.lines` USED TO LIVE HERE AND DELIBERATELY
         // DO NOT ANY MORE. Michael, 2026-09-05: the size is what scales, and "the
         // (height) lines and (width) colums increase or decrease" as a result of it.
@@ -154,6 +155,22 @@ final class SyncedSettings {
     var darkYou: String { didSet { store(darkYou, Key.darkYou, "dark you -> \(darkYou)") } }
     var darkThem: String { didSet { store(darkThem, Key.darkThem, "dark them -> \(darkThem)") } }
 
+    /// Hold a bar to talk, instead of leaving the microphone open.
+    ///
+    /// His idea, 2026-09-07, for the iPhone 14 Pro Max living in his bedroom: *"i may use
+    /// the 14 for always available in my bedroom on HF"* → *"maybe a PTT mode?"*
+    ///
+    /// ⚠️ THE REASON IS OVERNIGHT FALSE TRIGGERS. An always-open microphone in a bedroom
+    /// hears a television, a phone call, a conversation — and every stray sentence is sent
+    /// to a live shell. Push-to-talk makes the start of an utterance a deliberate act,
+    /// which is the one thing a room full of noise cannot fake.
+    ///
+    /// ⚠️ IT SYNCS, AND THAT IS ARGUABLY WRONG — noted rather than decided. Everything in
+    /// this file follows him between devices, and this follows the shipped pattern. But
+    /// push-to-talk suits a phone sitting on a nightstand and not the one in his hand.
+    /// If it turns out to want to be per-device, this is the line to move.
+    var pushToTalk: Bool { didSet { store(pushToTalk, Key.pushToTalk, "push-to-talk -> \(pushToTalk)") } }
+
     /// Put everything on this screen back to the shipped values.
     func resetAppearance() {
         fontSize = Default.fontSize
@@ -177,6 +194,9 @@ final class SyncedSettings {
     private init() {
         let stored = local.double(forKey: Key.pauseSeconds)
         pauseSeconds = stored > 0 ? stored : 1.5
+
+        // Off by default: the shipped behaviour is the one that needs no explanation.
+        pushToTalk = local.bool(forKey: Key.pushToTalk)
 
         let fs = local.double(forKey: Key.fontSize)
         fontSize = fs > 0 ? fs : Default.fontSize
@@ -209,6 +229,9 @@ final class SyncedSettings {
     /// one direction is worse than one that does not sync at all, because the screen
     /// still claims it worked.
     private func pullFromCloud() {
+        let ptt = cloud.bool(forKey: Key.pushToTalk)
+        if ptt != pushToTalk { pushToTalk = ptt }
+
         let pause = cloud.double(forKey: Key.pauseSeconds)
         if pause > 0, pause != pauseSeconds {
             pauseSeconds = pause

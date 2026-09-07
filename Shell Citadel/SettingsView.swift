@@ -181,6 +181,19 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
+                    // ⚠️ PUSH-TO-TALK COMES FIRST BECAUSE IT DECIDES WHETHER THE CONTROL
+                    // BELOW IT MEANS ANYTHING. The pause is "how long a silence ends a
+                    // sentence"; under a held bar the release ends the sentence, so the
+                    // pause is not consulted at all. Putting the switch after the
+                    // stepper would let him tune a number this mode ignores.
+                    Toggle("Push to talk", isOn: $settings.pushToTalk)
+
+                    if settings.pushToTalk {
+                        Text("A bar takes the keyboard's place when the keyboard is down. Hold it to talk, let go to send.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
                     // ⚠️ A STEPPER, NOT A SLIDER, AND HE FOUND THE VALUE BY STEPPING.
                     // The useful range is about half a second wide. A slider cannot be
                     // nudged by exactly half a second, and cannot be nudged at all
@@ -192,6 +205,12 @@ struct SettingsView: View {
                                 .font(.system(.body, design: .monospaced))
                         }
                     }
+                    // ⚠️ DIMMED, NOT HIDDEN. Removing it would make the setting look
+                    // deleted rather than inapplicable, and it comes back the moment
+                    // push-to-talk goes off. A control that says why it is asleep beats
+                    // one that vanishes.
+                    .disabled(settings.pushToTalk)
+                    .foregroundStyle(settings.pushToTalk ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
                 } header: {
                     HStack {
                         Text("Hands free")

@@ -388,6 +388,38 @@ final class Dictation: ObservableObject {
         return cancelPhrases.contains { t == $0 || t.hasSuffix(" " + $0) }
     }
 
+    /// Deliver whatever has been heard so far and close the microphone. Push-to-talk.
+    ///
+    /// ⚠️ `stop()` ALONE WOULD THROW THE SENTENCE AWAY. It calls `teardown()`, which
+    /// cancels the recognition task, and the utterance is normally delivered by the
+    /// SILENCE TIMER — not by stopping. In push-to-talk there is no silence to wait for:
+    /// releasing the button IS the end of the sentence, and the pause timer would still
+    /// be counting when the audio was already gone.
+    ///
+    /// ⚠️ AND THE PAUSE MUST NOT APPLY HERE AT ALL. His pause setting exists so a long
+    /// sentence is not sent out from under him mid-thought. Under a held button he has
+    /// already said when he is finished, so waiting would only add a delay to a decision
+    /// he has made.
+    ///
+    /// The cancel phrases and the two-character floor still apply — a released button
+    /// that caught a cough should no more reach a live shell than a pause that did.
+    func finishNow() {
+        guard isListening else { return }
+        let text = partial.trimmingCharacters(in: .whitespacesAndNewlines)
+        silenceTimer?.invalidate()
+        silenceTimer = nil
+        // Silent: the button being released is the acknowledgement, and a tone on top of
+        // it is the app narrating something he can feel.
+        stop(silent: true)
+
+        if Self.isCancelled(text) {
+            onCancelled?()
+            return
+        }
+        guard text.count >= 2 else { return }
+        onUtterance?(text)
+    }
+
     /// The pause elapsed. Hand over what was said and start listening for the next thing.
     private func commit() {
         let text = partial.trimmingCharacters(in: .whitespacesAndNewlines)
