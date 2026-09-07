@@ -250,7 +250,17 @@ actor SSHSession {
         // transcription errors and a typed one does not. Without this the far end either
         // over-reads a mis-transcription as intent or second-guesses something he
         // actually typed — both happened repeatedly on 2026-09-05.
-        let source = spoken ? "\(tag) HF" : tag
+        // ⚠️ THE BUILD NUMBER RIDES IN THE STAMP. His idea, 2026-09-07: "we could add the
+        // SC build number to the timestamp" — and his reason was "i was just thinking for
+        // you," which is exactly right. When he reports something from the phone, the
+        // message now names the build that produced it, so the first question after every
+        // bug report — which build is this? — is already answered. It is the
+        // build-number-names-the-commit rule applied to the conversation itself.
+        //
+        // Order is deliberate: source, then build, then HF last, so the dictation marker
+        // stays at the end where it has always been and nothing already sent is re-read.
+        let origin = "\(tag) \(BuildStamp.number)"
+        let source = spoken ? "\(origin) HF" : origin
         let stamped = shouldStamp ? "[\(Self.sentStamp()) \(source)] \(text)" : text
         let body = Self.shellQuoted(stamped)
         let buffer = "shell-citadel-msg"

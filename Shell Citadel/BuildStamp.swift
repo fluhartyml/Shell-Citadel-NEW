@@ -19,17 +19,28 @@
 //  commit, and Scripts/install-hooks.sh puts that hook in place — git never copies hooks
 //  on clone, so the hook has to be installed from something the repository carries.
 
+import Foundation
+
 enum BuildStamp {
     /// Short SHA of HEAD when this build was stamped. "+" suffix = uncommitted changes.
-    static let commit = "3fc104a"
+    static let commit = "cb828c8"
 
     /// Branch HEAD was on when this build was stamped.
     static let branch = "main"
 
     /// Local time the stamp was generated — effectively the build time.
-    static let built = "2026-09-07 09:29"
+    static let built = "2026-09-07 09:32"
 
     /// True when this binary was never stamped. Not a missing answer — it IS the answer:
     /// this build predates stamping, so it is older than any stamped one.
     static var isStamped: Bool { commit != "unstamped" }
+
+    /// The build number — `CURRENT_PROJECT_VERSION`, which is the git commit count.
+    ///
+    /// ⚠️ READ FROM THE BUNDLE, NOT STAMPED INTO THIS FILE. It is already written into
+    /// the project by `Scripts/stamp-build.sh`, and a second copy here could disagree
+    /// with the first. One source, so there is nothing to keep in step.
+    static var number: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+    }
 }
