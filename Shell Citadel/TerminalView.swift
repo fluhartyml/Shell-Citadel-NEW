@@ -12,6 +12,9 @@
 //
 
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 import PhotosUI
 #if os(iOS)
 import VisionKit
@@ -63,17 +66,21 @@ struct TerminalView: View {
     ///
     /// ⚠️ PER-DEVICE, NOT SYNCED. Which host this phone last talked to is a fact about
     /// THIS device, the same line SyncedSettings draws for the mutes.
-    /// ⛔ MONITOR MODE — eyes-free monitoring of the connected host. His idea and his
-    /// name for it, 2026-09-09: "it would be a terminal monitoring mode for a sys admin
-    /// to monitor their server while in bed or something."
+    /// ⛔ IN-FLIGHT DRAIN — his name for it, 2026-09-09, after asking for the technical
+    /// term: "maybe 'inflight drain mode?'". Drain is the load-balancer word: let work
+    /// already in flight finish, accept nothing new, then shut down.
     ///
-    /// ⚠️ OUTPUT ONLY. NO MICROPHONE. He cut that out himself: "the toggle on the hands
-    /// free wouldn't be used because it would be monitoring only." A background mode
-    /// holding the microphone open is a far harder thing to justify than one speaking.
-    ///
-    /// ⚠️ DEFAULT ON, his call: "opt to toggle off." Claude recommended the opposite.
-    /// Per-device, like the mutes — which phone is the monitor is a fact about a phone.
-    @AppStorage("monitorMode") private var monitorMode = true
+    /// Two jobs, and he asked for them in that order:
+    ///   1. FINISH THE SENTENCE. "let it keep talking after locking the phone and when it
+    ///      stops talking, let it go to sleep." Everything already buffered is spoken,
+    ///      and anything arriving before it drains is spoken too.
+    ///   2. RIDE OUT AN ACCIDENTAL LOCK. "it doesnt disconnect the ssh if you accidentally
+    ///      lock your screen it doesnt interupt." Coming back inside the window cancels
+    ///      the stand-down entirely.
+    @State private var drainTask: Task<Void, Never>?
+    #if os(iOS)
+    @State private var drainAssertion: UIBackgroundTaskIdentifier = .invalid
+    #endif
 
     @AppStorage("lastConnectionID") private var lastConnectionID = ""
     @AppStorage("reopenLastConnection") private var reopenLastConnection = true
@@ -525,7 +532,17 @@ struct TerminalView: View {
                         // A tab that was not frontmost when he came back stayed down on
                         // purpose — reconnecting every tab at once would be a stampede.
                         // It gets its turn when he actually looks at it.
-                        tryResumeAfterReturn()
+                        // ⛔ CAME BACK INSIDE THE WINDOW — the accidental lock. Cancel the
+                    // pending stand-down and carry on as if nothing happened. That is the
+                    // whole point of the grace period.
+                    if drainTask != nil {
+                        drainTask?.cancel()
+                        drainTask = nil
+                        endDrainAssertion()
+                        Diagnostics.shared.record(.app, "in-flight drain cancelled · returned inside the window · \(tab.title)")
+                        return
+                    }
+                    tryResumeAfterReturn()
                     }
                     Diagnostics.shared.record(.app, "tab awake \u{00B7} \(tab.title)")
                 } else {
@@ -567,21 +584,23 @@ struct TerminalView: View {
                 switch phase {
                 case .background:
                     guard isConnected else { return }
-                    // ⛔ MONITOR MODE KEEPS THE CONNECTION. His feature, 2026-09-09:
-                    // a phone on a charger, screen locked, reading the server aloud.
-                    // Standing down here is exactly what it must not do.
+                    // ⛔ FINISH THE SENTENCE, THEN STAND DOWN. His instruction,
+                    // 2026-09-09: "let it keep talking after locking the phone and when
+                    // it stops talking, let it go to sleep."
                     //
-                    // ⚠️ IT ONLY HOLDS BECAUSE THE AUDIO SESSION IS HELD. See
-                    // `SpokenOutput.releaseAudioSession()`. If that ever releases, iOS
-                    // suspends the app and the socket dies wedged — the failure this
-                    // stand-down was written to prevent. The two are one mechanism.
-                    if monitorMode {
-                        appendTranscript(.init(kind: .status,
-                                               text: "Monitor mode — still listening to this host with the screen locked."))
-                        Diagnostics.shared.record(.app, "monitor mode · held through background · \(tab.title)")
-                        return
-                    }
-                    Task { await standDownForBackground() }
+                    // Locking the phone mid-reply used to cut the speech off in the
+                    // middle of a word. The `audio` background mode lets the utterance
+                    // run to its end; the stand-down then happens on the way out.
+                    //
+                    // ⚠️ THIS IS THE HONEST USE OF THAT BACKGROUND MODE, and the reason
+                    // the previous attempt was abandoned. Build 95 held the audio session
+                    // open through the SILENCE to keep the connection alive. It did not
+                    // work — an active session does not keep an app alive, only playing
+                    // audio does — and the socket died anyway with NIOSSHError 1. Making
+                    // it work would mean playing silence for hours, which is exactly what
+                    // Guideline 2.5.4 exists to refuse. Here the audio plays because
+                    // there is something to say, and stops when there is not.
+                    beginInFlightDrain()
                 case .active:
                     // ⚠️ COMING BACK IS THE OTHER HALF, AND HE ASKED FOR IT BY NAME:
                     // "reconnect auto and get back to where you left off" (2026-09-07).
@@ -1016,6 +1035,57 @@ struct TerminalView: View {
         connection = picked
         password = storedPassword
         Task { await toggleConnection(focusComposer: false) }
+    }
+
+    /// How long the connection is held after the screen goes dark, once speech has
+    /// stopped. Long enough that locking the phone and unlocking it again is not a
+    /// disconnection; short enough to stay inside the time iOS actually grants.
+    ///
+    /// ⚠️ THE ASSERTION IS WHAT BUYS THE TIME, not this number. Without
+    /// `beginBackgroundTask` the app can be suspended almost at once and the timer would
+    /// simply never fire — which would look like the grace period "not working" rather
+    /// than never having been granted. That distinction is exactly what build 95 got
+    /// wrong about the audio session.
+    private static let drainGraceSeconds = 20
+
+    /// Finishes what is being said, waits out the grace window, then stands down.
+    private func beginInFlightDrain() {
+        guard drainTask == nil else { return }
+        #if os(iOS)
+        drainAssertion = UIApplication.shared.beginBackgroundTask(withName: "in-flight drain") {
+            // iOS is reclaiming the time. Stand down NOW rather than be killed holding a
+            // socket — the wedged-actor failure standDownForBackground exists to prevent.
+            drainTask?.cancel()
+            drainTask = nil
+            Task { await standDownForBackground() }
+            endDrainAssertion()
+        }
+        #endif
+
+        drainTask = Task {
+            // 1. Let the speech finish. Polled rather than hooked, so cancelling on
+            //    return is instant and cannot leave a callback armed.
+            while SpokenOutput.shared.isSpeaking, !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+            // 2. The accidental-lock window.
+            for _ in 0..<Self.drainGraceSeconds {
+                if Task.isCancelled { return }
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+            guard !Task.isCancelled else { return }
+            await standDownForBackground()
+            drainTask = nil
+            endDrainAssertion()
+        }
+    }
+
+    private func endDrainAssertion() {
+        #if os(iOS)
+        guard drainAssertion != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(drainAssertion)
+        drainAssertion = .invalid
+        #endif
     }
 
     private func tryResumeAfterReturn() {

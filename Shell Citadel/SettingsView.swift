@@ -140,8 +140,6 @@ struct SettingsView: View {
     /// Per-device, like the mutes: which host this one last talked to is a fact about
     /// this device, not a preference about him.
     @AppStorage("reopenLastConnection") private var reopenLastConnection = true
-    /// Default ON, his decision 2026-09-09: "opt to toggle off." Per-device.
-    @AppStorage("monitorMode") private var monitorMode = true
     @State private var tab: ColourTab = .light
     @State private var spoken = SpokenOutput.shared
     @StateObject private var dictation = Dictation.shared
@@ -225,10 +223,6 @@ struct SettingsView: View {
                     // app is his decision; a dropped socket is not, and that case still
                     // refuses to reconnect by itself.
                     Toggle("Reopen last connection on launch", isOn: $reopenLastConnection)
-                    Toggle("Monitor mode", isOn: $monitorMode)
-                    Text("Keeps reading this host aloud with the screen locked, for watching a server without looking at it. Output only — the microphone is not used.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                     Toggle("Read new output aloud", isOn: $spoken.isEnabled)
                     Toggle("Microphone on", isOn: Binding(
                         get: { dictation.isListening },

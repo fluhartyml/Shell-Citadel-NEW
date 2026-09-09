@@ -305,37 +305,27 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
-    /// Whether MONITOR MODE is on for THIS device.
+    /// Called once when the whole spoken queue has drained and the audio is handed back.
     ///
-    /// ⚠️ PER-DEVICE, NOT SYNCED, and the file that decides this drew the line already:
-    /// "A MUTE IS A FACT ABOUT A ROOM." So is this. Which phone is sitting on a charger
-    /// acting as a monitor is a fact about that phone, not a preference about him — the
-    /// same reasoning `SyncedSettings` uses to keep the mutes local.
-    ///
-    /// ⚠️ DEFAULT ON. His decision, 2026-09-09: "opt to toggle off." `bool(forKey:)`
-    /// returns false for a key that was never written, which would default it OFF and
-    /// quietly invert his choice — hence reading the object and falling back to true.
-    static var monitorModeIsOn: Bool {
-        UserDefaults.standard.object(forKey: "monitorMode") as? Bool ?? true
-    }
+    /// ⚠️ THIS EXISTS SO BACKGROUNDING CAN WAIT FOR THE SENTENCE TO FINISH. Locking the
+    /// phone mid-reply used to cut the speech off; now the app stands down when the
+    /// speaking stops instead of the instant the screen goes dark. His instruction,
+    /// 2026-09-09: "let it keep talking after locking the phone and when it stops
+    /// talking, let it go to sleep."
+    var onQueueDrained: (() -> Void)?
 
     /// Hands the audio back to whatever else wanted it.
     ///
-    /// ⛔ IN MONITOR MODE IT DOES NOT. Holding the session open through the silence is
-    /// the entire mechanism: an app with the `audio` background mode keeps running while
-    /// its session is active, and deactivating between utterances is what lets iOS
-    /// suspend it. Release the session at 2 a.m. and the next reply is never spoken.
+    /// ⚠️ IT REALLY DOES RELEASE, AND THAT IS THE POINT. An earlier attempt (build 95)
+    /// held the session open through the silence to keep a locked phone connected. It
+    /// did not work and it could not have: an ACTIVE session does not keep an app alive,
+    /// only PLAYING AUDIO does. The app was suspended anyway and the SSH socket died —
+    /// "The operation couldn't be completed. (NIOSSH.NIOSSHError error 1.)"
     ///
-    /// ⚠️ THIS IS ALSO THE COMPLIANCE SURFACE, so it is one function and it is commented.
-    /// Guideline 2.5.4: a background mode may only be used for its intended purpose. The
-    /// purpose here is a terminal reading its host's output aloud — his framing,
-    /// 2026-09-09: "a terminal monitoring mode for a sys admin to monitor their server
-    /// while in bed." The session is held to keep SPEAKING, not to keep a socket alive.
+    /// ⛔ AND THE ONLY WAY TO MAKE THAT WORK IS THE ONE APPLE REJECTS: playing silence
+    /// through the quiet hours purely to stay running. Guideline 2.5.4. So the honest
+    /// version is this one — speak while there is something to say, then let go.
     private func releaseAudioSession() {
-        if Self.monitorModeIsOn {
-            Diagnostics.shared.record(.app, "monitor mode · audio session held open")
-            return
-        }
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         } catch {
@@ -363,6 +353,7 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
             #if os(iOS)
             releaseAudioSession()
             #endif
+            onQueueDrained?()
         }
     }
 
@@ -375,6 +366,10 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
             guard pending == 0 else { return }
             isSpeaking = false
             VoiceCoordinator.shared.didFinishSpeaking()
+            // ⚠️ THE CANCEL PATH FIRES IT TOO. A stand-down waiting on this hook would
+            // wait forever if speech were cancelled rather than finished — and the app
+            // would sit in the background holding a connection nobody is listening to.
+            onQueueDrained?()
         }
     }
 }
