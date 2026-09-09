@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- ⛔ THIS FILE EXISTS FOR ONE KEY, AND ONLY BECAUSE THE BUILD SETTING CANNOT CARRY IT.
+	     GENERATE_INFOPLIST_FILE stays YES: Xcode merges every INFOPLIST_KEY_* setting into
+	     this file, so the microphone string, orientations and launch screen are all still
+	     defined in the project, not here. There is no supported
+	     INFOPLIST_KEY_UIBackgroundModes — it was tried, twice, and the built app's plist
+	     had no UIBackgroundModes entry either time while the build reported success.
+	     -> Skills Lab: trust-build-success-not-the-pipe-exit-code (a green build is not
+	        evidence the thing you wanted is in the product) -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<!-- MONITOR MODE. A terminal that reads its host aloud, still reading it when the
+		     screen locks. Held only while SpokenOutput keeps the audio session active;
+		     see releaseAudioSession() for the purpose and the 2.5.4 reasoning. -->
+		<string>audio</string>
+	</array>
+</dict>
+</plist>

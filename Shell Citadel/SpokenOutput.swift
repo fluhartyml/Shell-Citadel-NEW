@@ -305,8 +305,37 @@ final class SpokenOutput: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
+    /// Whether MONITOR MODE is on for THIS device.
+    ///
+    /// ⚠️ PER-DEVICE, NOT SYNCED, and the file that decides this drew the line already:
+    /// "A MUTE IS A FACT ABOUT A ROOM." So is this. Which phone is sitting on a charger
+    /// acting as a monitor is a fact about that phone, not a preference about him — the
+    /// same reasoning `SyncedSettings` uses to keep the mutes local.
+    ///
+    /// ⚠️ DEFAULT ON. His decision, 2026-09-09: "opt to toggle off." `bool(forKey:)`
+    /// returns false for a key that was never written, which would default it OFF and
+    /// quietly invert his choice — hence reading the object and falling back to true.
+    static var monitorModeIsOn: Bool {
+        UserDefaults.standard.object(forKey: "monitorMode") as? Bool ?? true
+    }
+
     /// Hands the audio back to whatever else wanted it.
+    ///
+    /// ⛔ IN MONITOR MODE IT DOES NOT. Holding the session open through the silence is
+    /// the entire mechanism: an app with the `audio` background mode keeps running while
+    /// its session is active, and deactivating between utterances is what lets iOS
+    /// suspend it. Release the session at 2 a.m. and the next reply is never spoken.
+    ///
+    /// ⚠️ THIS IS ALSO THE COMPLIANCE SURFACE, so it is one function and it is commented.
+    /// Guideline 2.5.4: a background mode may only be used for its intended purpose. The
+    /// purpose here is a terminal reading its host's output aloud — his framing,
+    /// 2026-09-09: "a terminal monitoring mode for a sys admin to monitor their server
+    /// while in bed." The session is held to keep SPEAKING, not to keep a socket alive.
     private func releaseAudioSession() {
+        if Self.monitorModeIsOn {
+            Diagnostics.shared.record(.app, "monitor mode · audio session held open")
+            return
+        }
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         } catch {

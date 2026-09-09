@@ -63,6 +63,18 @@ struct TerminalView: View {
     ///
     /// ⚠️ PER-DEVICE, NOT SYNCED. Which host this phone last talked to is a fact about
     /// THIS device, the same line SyncedSettings draws for the mutes.
+    /// ⛔ MONITOR MODE — eyes-free monitoring of the connected host. His idea and his
+    /// name for it, 2026-09-09: "it would be a terminal monitoring mode for a sys admin
+    /// to monitor their server while in bed or something."
+    ///
+    /// ⚠️ OUTPUT ONLY. NO MICROPHONE. He cut that out himself: "the toggle on the hands
+    /// free wouldn't be used because it would be monitoring only." A background mode
+    /// holding the microphone open is a far harder thing to justify than one speaking.
+    ///
+    /// ⚠️ DEFAULT ON, his call: "opt to toggle off." Claude recommended the opposite.
+    /// Per-device, like the mutes — which phone is the monitor is a fact about a phone.
+    @AppStorage("monitorMode") private var monitorMode = true
+
     @AppStorage("lastConnectionID") private var lastConnectionID = ""
     @AppStorage("reopenLastConnection") private var reopenLastConnection = true
 
@@ -555,6 +567,20 @@ struct TerminalView: View {
                 switch phase {
                 case .background:
                     guard isConnected else { return }
+                    // ⛔ MONITOR MODE KEEPS THE CONNECTION. His feature, 2026-09-09:
+                    // a phone on a charger, screen locked, reading the server aloud.
+                    // Standing down here is exactly what it must not do.
+                    //
+                    // ⚠️ IT ONLY HOLDS BECAUSE THE AUDIO SESSION IS HELD. See
+                    // `SpokenOutput.releaseAudioSession()`. If that ever releases, iOS
+                    // suspends the app and the socket dies wedged — the failure this
+                    // stand-down was written to prevent. The two are one mechanism.
+                    if monitorMode {
+                        appendTranscript(.init(kind: .status,
+                                               text: "Monitor mode — still listening to this host with the screen locked."))
+                        Diagnostics.shared.record(.app, "monitor mode · held through background · \(tab.title)")
+                        return
+                    }
                     Task { await standDownForBackground() }
                 case .active:
                     // ⚠️ COMING BACK IS THE OTHER HALF, AND HE ASKED FOR IT BY NAME:
