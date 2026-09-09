@@ -51,6 +51,25 @@ struct TerminalView: View {
     @State private var replyTask: Task<Void, Never>?
     @State private var replyOffset = 0
 
+    /// ⛔ REOPEN THE LAST CONNECTION ON LAUNCH — his ask, 2026-09-09 07:11:
+    /// "what i want is a resume last connection so i don't have to manually find the
+    /// connection and then connect".
+    ///
+    /// ⚠️ THIS IS THE OPPOSITE OF THE RULE DIRECTLY BELOW, AND HE OVERRULED IT KNOWINGLY.
+    /// `tryResumeAfterReturn` refuses to reconnect on its own because he may be on
+    /// cellular or in someone else's house. That reasoning still holds for a DROP. It
+    /// does not hold for opening the app himself: tapping the icon IS the decision, and
+    /// making him then hunt for the same card every morning is the friction he reported.
+    ///
+    /// ⚠️ PER-DEVICE, NOT SYNCED. Which host this phone last talked to is a fact about
+    /// THIS device, the same line SyncedSettings draws for the mutes.
+    @AppStorage("lastConnectionID") private var lastConnectionID = ""
+    @AppStorage("reopenLastConnection") private var reopenLastConnection = true
+
+    /// One attempt per launch. Without this a failed auto-open would retry on every
+    /// redraw, which is the battery drain `tryResumeAfterReturn` refuses to become.
+    @State private var didTryReopen = false
+
     /// ⚠️ THE CONNECTION DOES NOT SURVIVE A LOCKED SCREEN. See `standDownForBackground()`.
     @Environment(\.scenePhase) private var scenePhase
 
@@ -479,6 +498,7 @@ struct TerminalView: View {
             // busy — that is the whole reason the microphone is on. Written, because
             // audio is gone the moment it is said and a transcript can be scrolled back.
             .onAppear {
+                tryReopenLastConnection()
                 dictation.onNotice = { sentence in
                     appendTranscript(.init(kind: .status, text: sentence))
                     SpokenOutput.shared.announce(sentence)
@@ -554,7 +574,13 @@ struct TerminalView: View {
             .onChange(of: connection.title) { _, new in tab.title = new }
             .onChange(of: isConnected) { _, live in
                 tab.isConnected = live
-                if live { tab.isFresh = false }
+                if live {
+                    tab.isFresh = false
+                    // Remembered on SUCCESS only. A connection that failed is kept by the
+                    // store for proofreading, but reopening into it every launch would
+                    // hand him the same error before he had asked for anything.
+                    lastConnectionID = connection.id.uuidString
+                }
             }
             .sheet(isPresented: $showingSettings) { SettingsView() }
             .sheet(isPresented: $showingAbout) {
@@ -946,6 +972,26 @@ struct TerminalView: View {
     /// ⛔ AND IT DOES NOT RETRY. One attempt; if it fails, the failure sentence stands and
     /// he decides. A reconnect loop against a Mac that is out of reach — on cellular, in
     /// someone else's house — would be a battery drain writing the same error over and over.
+    /// Opens the connection he last used, once, when the app comes up cold.
+    ///
+    /// ⛔ THE SAME FOUR GUARDS AS `tryResumeAfterReturn`, PLUS TWO. It must be his
+    /// frontmost tab, nothing already running, and a password on file — an auto-open that
+    /// prompts for a password is worse than the card list it replaced. And it only fires
+    /// on a FRESH tab: a tab with a transcript is one he already used, and re-opening
+    /// underneath that would be a second connection he did not ask for.
+    private func tryReopenLastConnection() {
+        guard reopenLastConnection, !didTryReopen else { return }
+        guard tab.isFresh, !isConnected, !isBusy, tab.isFrontmost else { return }
+        guard let saved = UUID(uuidString: lastConnectionID),
+              let picked = store.connections.first(where: { $0.id == saved }) else { return }
+        let storedPassword = CredentialStore.password(for: picked) ?? ""
+        guard !storedPassword.isEmpty else { return }
+        didTryReopen = true
+        connection = picked
+        password = storedPassword
+        Task { await toggleConnection(focusComposer: false) }
+    }
+
     private func tryResumeAfterReturn() {
         guard resumeOnReturn, !isConnected, tab.isFrontmost, !isBusy, !password.isEmpty else { return }
         resumeOnReturn = false

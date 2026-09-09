@@ -136,6 +136,10 @@ private enum ColourTab: String, CaseIterable {
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var settings = SyncedSettings.shared
+
+    /// Per-device, like the mutes: which host this one last talked to is a fact about
+    /// this device, not a preference about him.
+    @AppStorage("reopenLastConnection") private var reopenLastConnection = true
     @State private var tab: ColourTab = .light
     @State private var spoken = SpokenOutput.shared
     @StateObject private var dictation = Dictation.shared
@@ -213,6 +217,12 @@ struct SettingsView: View {
                     // reach them, not a second copy of the state." Two switches that can
                     // disagree about one fact is worse than one switch in an awkward
                     // place.
+                    // ⚠️ ON BY DEFAULT, AND IT OVERRULES THE NEVER-RECONNECT RULE ON
+                    // PURPOSE. His ask, 2026-09-09: "a resume last connection so i don't
+                    // have to manually find the connection and then connect." Opening the
+                    // app is his decision; a dropped socket is not, and that case still
+                    // refuses to reconnect by itself.
+                    Toggle("Reopen last connection on launch", isOn: $reopenLastConnection)
                     Toggle("Read new output aloud", isOn: $spoken.isEnabled)
                     Toggle("Microphone on", isOn: Binding(
                         get: { dictation.isListening },
