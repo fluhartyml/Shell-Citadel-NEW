@@ -938,7 +938,19 @@ struct TerminalView: View {
                 // Only busy disables it now. A disconnected composer is exactly when he
                 // has something to say to it.
                 .disabled(isBusy)
-                .onSubmit { Task { await send() } }
+                // ⛔ RETURN DOES NOT SEND. THE BLUE ARROW IS THE ONLY WAY TO SEND.
+                //
+                // His words, 2026-09-11: "i hate when it sends when i meant to backspecr"
+                // and then "ccarage return is the bug because it sends."
+                //
+                // The send arrow sits beside the iOS keyboard's delete key. A thumb that
+                // misses delete hits Return, and here a mis-sent line is half a command
+                // reaching a LIVE TERMINAL, not an awkward message. The confirmation
+                // people usually reach for is the wrong fix — Return sending at all is
+                // the defect, and the blue arrow already exists to do it deliberately.
+                //
+                // Removing .onSubmit is the whole change. Nothing replaces it.
+                .submitLabel(.return)
                 // Recording the focus change is the whole of step 0.3 in one line: the
                 // question "who has the keyboard" now has an answer that is written
                 // down rather than inferred from a blinking cursor.
