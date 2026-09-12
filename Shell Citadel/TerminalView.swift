@@ -679,7 +679,10 @@ struct TerminalView: View {
                 CameraCapture(onCapture: { image in
                     showingCamera = false
                     guard let jpeg = PhotoSend.prepare(image) else { return }
-                    Task { await sendImage(jpeg) }
+                    Task {
+                        await keepIfAsked(image)
+                        await sendImage(jpeg)
+                    }
                 }, onCancel: { showingCamera = false })
                 .ignoresSafeArea()
             }
@@ -691,6 +694,7 @@ struct TerminalView: View {
                         // a form with half of it missing.
                         for page in pages {
                             guard let jpeg = PhotoSend.prepare(page) else { continue }
+                            await keepIfAsked(page)
                             await sendImage(jpeg)
                         }
                     }
@@ -1228,6 +1232,28 @@ struct TerminalView: View {
             }
         }
     }
+
+    /// Put a freshly captured picture in the camera roll first, if he has asked for it.
+    ///
+    /// ⚠️ BEFORE THE SEND, NOT AFTER, AND THE ORDER IS THE WHOLE FEATURE. The case this
+    /// exists for is a send that FAILS — he walked out of range on 2026-09-12 and two
+    /// photographs of the framing across the road went with the connection. Saving after
+    /// a successful upload would protect only the pictures that were never at risk.
+    ///
+    /// ⚠️ IT SAYS SO WHEN IT COULD NOT. Silence would read as "kept", and the next
+    /// photograph would be lost by someone who believed he had a copy.
+    #if os(iOS)
+    @MainActor
+    private func keepIfAsked(_ image: UIImage) async {
+        guard settings.saveCapturesToCameraRoll else { return }
+        if await PhotoSend.saveToCameraRoll(image) {
+            appendTranscript(.init(kind: .status, text: "Saved to your camera roll."))
+        } else {
+            appendTranscript(.init(kind: .failure,
+                                    text: "Could not save to your camera roll \u{2014} check Shell Citadel\u{2019}s photo permission in Settings."))
+        }
+    }
+    #endif
 
     /// Sends prepared image bytes to the Mac and says where they landed.
     ///

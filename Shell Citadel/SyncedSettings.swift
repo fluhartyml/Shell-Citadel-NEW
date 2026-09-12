@@ -75,6 +75,14 @@ final class SyncedSettings {
         static let darkBackground = "terminal.dark.background"
         static let darkYou = "terminal.dark.you"
         static let darkThem = "terminal.dark.them"
+        // ⚠️ THIS ONE REVERSES A BOUNDARY, SO IT IS A SETTING RATHER THAN A CHANGE.
+        // The containment rule in PhotoSend.swift is his — "that way the pictures and
+        // videos stay within shell citadel and dont leave its sandbox" — and it still
+        // holds by default. What he found on 2026-09-12 is the cost of it: a photograph
+        // taken inside the app exists nowhere else, so a send that fails takes the
+        // picture with it. "photos in shell citadel dont save unless they got sent to
+        // you." The toggle lets him keep the shot; it does not decide for him.
+        static let saveCaptures = "photos.saveCaptures"
     }
 
     /// ⚠️ THE DEFAULTS ARE GENERIC, NOT HIS.
@@ -154,6 +162,22 @@ final class SyncedSettings {
     var darkYou: String { didSet { store(darkYou, Key.darkYou, "dark you -> \(darkYou)") } }
     var darkThem: String { didSet { store(darkThem, Key.darkThem, "dark them -> \(darkThem)") } }
 
+    // MARK: - Photos
+
+    /// Keep a copy of anything photographed or scanned INSIDE the app.
+    ///
+    /// ⚠️ OFF BY DEFAULT, AND THAT IS THE PRIVACY POSITION, NOT AN OVERSIGHT. These
+    /// photographs are of medical documents, the inside of his house, his equipment —
+    /// the moment one lands in the library it syncs to iCloud and it has left. Shipping
+    /// this on would take that decision for every user who never opens Settings.
+    ///
+    /// ⚠️ IT DOES NOT COVER PICTURES CHOSEN FROM THE LIBRARY, because those are already
+    /// in it. Saving them back would hand him a duplicate every time he sent a
+    /// screenshot, which is a different feature and one nobody asked for.
+    var saveCapturesToCameraRoll: Bool {
+        didSet { store(saveCapturesToCameraRoll, Key.saveCaptures, "save captures -> \(saveCapturesToCameraRoll)") }
+    }
+
     /// Put everything on this screen back to the shipped values.
     func resetAppearance() {
         fontSize = Default.fontSize
@@ -187,6 +211,9 @@ final class SyncedSettings {
         darkBackground = local.string(forKey: Key.darkBackground) ?? Default.darkBackground
         darkYou = local.string(forKey: Key.darkYou) ?? Default.darkYou
         darkThem = local.string(forKey: Key.darkThem) ?? Default.darkThem
+        // `bool(forKey:)` returns false for a key that was never written, which is the
+        // wanted default — so this needs no "has it been set" dance.
+        saveCapturesToCameraRoll = local.bool(forKey: Key.saveCaptures)
 
         NotificationCenter.default.addObserver(
             forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
@@ -234,6 +261,19 @@ final class SyncedSettings {
         for (key, apply) in colourPullers {
             guard let hex = cloud.string(forKey: key) else { continue }
             apply(hex)
+        }
+
+        // ⚠️ ASKS WHETHER THE KEY EXISTS BEFORE READING IT, WHICH THE OTHERS DO NOT HAVE
+        // TO. `bool(forKey:)` returns false for "never written" and for "written false"
+        // alike, so reading it blind would let a store that has never heard of this
+        // setting switch it off on the device that just turned it on — the one case
+        // where a sync silently reverses a decision he made.
+        if cloud.object(forKey: Key.saveCaptures) != nil {
+            let save = cloud.bool(forKey: Key.saveCaptures)
+            if save != saveCapturesToCameraRoll {
+                saveCapturesToCameraRoll = save
+                Diagnostics.shared.record(.app, "save captures synced from another device -> \(save)")
+            }
         }
     }
 

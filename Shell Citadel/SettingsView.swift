@@ -422,6 +422,41 @@ struct SettingsView: View {
                     Text("Colours")
                 }
 
+                // ─────────────────────────────────────────────────────────────────
+                // PHOTOS — the one setting that reverses a boundary he set himself.
+                // ─────────────────────────────────────────────────────────────────
+                Section {
+                    Toggle("Keep photos you take here", isOn: $settings.saveCapturesToCameraRoll)
+                } header: {
+                    HStack {
+                        Text("Photos")
+                        MoreInfo(
+                            title: "keeping what you photograph",
+                            detail: """
+                            Normally a picture you take or scan inside Shell Citadel \
+                            goes straight up the wire and is then gone. Nothing is \
+                            written to your photo library, so what you photograph here \
+                            \u{2014} a document, a room, a piece of equipment \u{2014} \
+                            never reaches iCloud.
+
+                            That also means a picture is lost if the send fails. Turn \
+                            this on and a copy goes to your camera roll first, at full \
+                            resolution, before anything is uploaded.
+
+                            Pictures you CHOOSE from your library are not affected. \
+                            They are already there.
+                            """
+                        )
+                    }
+                } footer: {
+                    // ⚠️ NAMES THE PRIVACY CONSEQUENCE RATHER THAN THE MECHANISM. What
+                    // changes for him is not "an asset is created" — it is that the
+                    // photograph leaves the app and syncs. That is the fact he needs in
+                    // front of him to decide, and it is why this ships off.
+                    Text("Off by default. Anything in your camera roll syncs to iCloud like the rest of your photos.")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 Section {
                     Button("Reset to defaults", role: .destructive) {
                         settings.resetAppearance()
