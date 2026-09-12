@@ -377,7 +377,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Shell Citadel/Shell Citadel.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 98;
+				CURRENT_PROJECT_VERSION = 99;
 				DEVELOPMENT_TEAM = 3X3F6UJ44H;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -441,7 +441,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Shell Citadel/Shell Citadel.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 98;
+				CURRENT_PROJECT_VERSION = 99;
 				DEVELOPMENT_TEAM = 3X3F6UJ44H;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -503,7 +503,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 98;
+				CURRENT_PROJECT_VERSION = 99;
 				DEVELOPMENT_TEAM = 3X3F6UJ44H;
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphoneos*]" = "So you can photograph a label, a cable or a screen and send it straight to the machine you are connected to. Pictures are not saved to your photo library unless you switch that on in Settings.";
@@ -537,7 +537,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 98;
+				CURRENT_PROJECT_VERSION = 99;
 				DEVELOPMENT_TEAM = 3X3F6UJ44H;
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphoneos*]" = "So you can photograph a label, a cable or a screen and send it straight to the machine you are connected to. Pictures are not saved to your photo library unless you switch that on in Settings.";
@@ -570,7 +570,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 98;
+				CURRENT_PROJECT_VERSION = 99;
 				DEVELOPMENT_TEAM = 3X3F6UJ44H;
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphoneos*]" = "So you can photograph a label, a cable or a screen and send it straight to the machine you are connected to. Pictures are not saved to your photo library unless you switch that on in Settings.";
@@ -603,7 +603,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 98;
+				CURRENT_PROJECT_VERSION = 99;
 				DEVELOPMENT_TEAM = 3X3F6UJ44H;
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_KEY_NSCameraUsageDescription[sdk=iphoneos*]" = "So you can photograph a label, a cable or a screen and send it straight to the machine you are connected to. Pictures are not saved to your photo library unless you switch that on in Settings.";
